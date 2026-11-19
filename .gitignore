@@ -1,0 +1,11 @@
+node_modules
+dist
+*.local
+src/data/interactions.private.ts
+
+# Material que fica só no computador (fotos de referência, documentos do grupo, ferramentas de arte)
+referencias/
+docs/
+tools/
+.claude/
+public/assets/sprites/ASSETS_README.md
