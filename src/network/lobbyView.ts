@@ -5,7 +5,7 @@ import { CHARACTERS, type CharacterId } from '../data/characters';
 import type { RoomState } from './client';
 
 const ORDER: readonly CharacterId[] = ['felipe', 'mauro', 'melissa', 'thaisa', 'thayssa'];
-const DELAY_LABEL: Record<number, string> = { 4: 'Rápido (conexão ótima)', 6: 'Normal', 10: 'Estável (conexão ruim)' };
+const DELAY_LABEL: Record<number, string> = { 0: 'Automático (recomendado)', 4: 'Rápido (conexão ótima)', 6: 'Normal', 10: 'Estável', 14: 'Muito estável (conexão ruim)' };
 const NAME_KEY = 'profecia.online.nome';
 
 export interface LobbyHandlers {
@@ -75,6 +75,7 @@ export class LobbyView {
   private readonly wrap = el('div', 'on-wrap');
   private readonly box = el('div', 'on-box');
   private room: RoomState | null = null;
+  private sig = '';
   private err = '';
   private name = loadName();
   private codeDraft = '';
@@ -138,6 +139,23 @@ export class LobbyView {
 
   /** Estado novo da sala (chega a cada mudança). */
   update(room: RoomState): void {
+    // O servidor manda a sala a cada 2 s só para atualizar o ping: nesse caso troca só os números,
+    // sem refazer o painel (senão o menu de atraso fecharia na cara de quem está escolhendo).
+    const sig = JSON.stringify({ ...room, autoDelay: 0, members: room.members.map((m) => ({ ...m, rtt: 0 })) });
+    if (this.room && this.wrap.classList.contains('on') && sig === this.sig) {
+      this.room = room;
+      for (const m of room.members) {
+        const e = this.box.querySelector<HTMLElement>(`[data-rtt="${m.id}"]`);
+        if (e) {
+          e.textContent = m.rtt > 0 ? `${m.rtt} ms` : '';
+          e.className = m.rtt > 150 ? 'st no' : 'st';
+        }
+      }
+      const d = this.box.querySelector('#on-auto');
+      if (d) d.textContent = `Atraso de entrada: o automático usa o ping de cada jogador (agora: ${room.autoDelay} passos). Maior = mais suave com internet lenta, mas os controles respondem mais tarde.`;
+      return;
+    }
+    this.sig = sig;
     this.room = room;
     this.err = '';
     this.wrap.classList.add('on');
@@ -242,6 +260,9 @@ export class LobbyView {
       linha.appendChild(el('span', 'ch', m.character ? CHARACTERS[m.character].name : '—'));
       const ok = m.ready || m.id === room.host;
       linha.appendChild(el('span', ok ? 'st' : 'st no', ok ? 'pronto' : 'escolhendo'));
+      const ping = el('span', m.rtt > 150 ? 'st no' : 'st', m.rtt > 0 ? `${m.rtt} ms` : '');
+      ping.dataset.rtt = String(m.id);
+      linha.appendChild(ping);
       lista.appendChild(linha);
     }
     b.appendChild(lista);
@@ -262,7 +283,7 @@ export class LobbyView {
       b.appendChild(el('h2', undefined, 'Configuração (anfitrião)'));
       const row = el('div', 'on-row');
       const sel = el('select');
-      for (const d of [4, 6, 10]) {
+      for (const d of [0, 4, 6, 10, 14]) {
         const o = el('option', undefined, DELAY_LABEL[d]);
         o.value = String(d);
         o.selected = room.delay === d;
@@ -279,7 +300,9 @@ export class LobbyView {
       auto.input.addEventListener('change', enviar);
       row.append(sel, rep.label, auto.label);
       b.appendChild(row);
-      b.appendChild(el('p', undefined, 'Atraso de entrada: quanto maior, mais suave com internet lenta, mas os controles respondem um pouco mais tarde.'));
+      const dica = el('p', undefined, `Atraso de entrada: o automático usa o ping de cada jogador (agora: ${room.autoDelay} passos). Maior = mais suave com internet lenta, mas os controles respondem mais tarde.`);
+      dica.id = 'on-auto';
+      b.appendChild(dica);
     }
 
     b.appendChild(el('div', 'on-err', this.err));

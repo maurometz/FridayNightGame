@@ -2,7 +2,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { attachRelay } from '../../server/relay.mjs';
+import { attachRelay, autoDelay } from '../../server/relay.mjs';
 import type { CharacterId } from '../data/characters';
 import { createWorld } from '../engine/world';
 import { NetClient, type RoomState, type StartInfo } from './client';
@@ -199,4 +199,15 @@ describe('relay + clientes reais', () => {
     expect(tarde.errors[0]).toMatch(/começou/i);
     for (const c of [host, ...outros, extra, tarde]) c.client.close();
   }, 20000);
+});
+
+describe('atraso automático', () => {
+  it('cobre a latência dos dois jogadores mais distantes, com limites', () => {
+    expect(autoDelay([])).toBe(6);
+    expect(autoDelay([0, 0])).toBe(6);
+    expect(autoDelay([20, 30])).toBe(5);
+    expect(autoDelay([200, 200])).toBe(15);
+    expect(autoDelay([30, 30, 250])).toBe(12); // (250+30)/2 = 140 ms de ida
+    expect(autoDelay([2000, 2000])).toBe(24);
+  });
 });

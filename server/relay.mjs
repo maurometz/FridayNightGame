@@ -6,7 +6,7 @@
 //   {t:'join', code, name}             entra numa sala
 //   {t:'pick', character}              escolhe o personagem (único na sala)
 //   {t:'ready', ready}                 marca "pronto"
-//   {t:'cfg', delay}                   (anfitrião) atraso de entrada em passos: 4, 6 ou 10
+//   {t:'cfg', delay}                   (anfitrião) atraso de entrada em passos: 0 (automático, pelo ping), 4, 6, 10 ou 14
 //   {t:'start'}                        (anfitrião) começa a partida
 //   {t:'restart'}                      (anfitrião) nova partida com os mesmos jogadores, depois do fim
 //   {t:'i', f:[[tick,x,y,bits,cmds?]]} entradas dos passos (repassadas aos outros)
@@ -18,7 +18,15 @@ import { randomInt } from 'node:crypto';
 
 export const MAX_PLAYERS = 5;
 export const CHARACTERS = ['felipe', 'mauro', 'melissa', 'thaisa', 'thayssa'];
-export const DELAYS = [4, 6, 10];
+export const DELAYS = [0, 4, 6, 10, 14];
+
+/** Atraso de entrada (em passos de 16,7 ms) que cobre a latência entre os dois jogadores mais distantes, com folga para oscilação. */
+export function autoDelay(rtts) {
+  const r = rtts.filter((x) => x > 0).sort((a, b) => b - a);
+  if (r.length === 0) return 6;
+  const umaVia = r.length > 1 ? (r[0] + r[1]) / 2 : r[0] / 2;
+  return Math.max(4, Math.min(24, Math.ceil(umaVia / 16.7) + 3));
+}
 const CODE_LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ';
 
 const clean = (s) => String(s ?? '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 14) || 'Jogador';
@@ -59,7 +67,8 @@ export function attachRelay(httpServer, { path = '/coop', log = () => {} } = {})
     host: room.hostId,
     phase: room.phase,
     delay: room.delay,
-    members: room.members.map((m) => ({ id: m.id, name: m.name, character: m.character, ready: m.ready })),
+    autoDelay: autoDelay(room.members.map((m) => m.rtt)),
+    members: room.members.map((m) => ({ id: m.id, name: m.name, character: m.character, ready: m.ready, rtt: Math.round(m.rtt) })),
   });
   const broadcastRoom = (room) => {
     for (const m of room.members) send(m, roomView(room, m));
@@ -76,15 +85,16 @@ export function attachRelay(httpServer, { path = '/coop', log = () => {} } = {})
 
   const startGame = (room) => {
     room.members.sort((a, b) => (a.slot ?? 99) - (b.slot ?? 99));
+    room.gameDelay = room.delay || autoDelay(room.members.map((m) => m.rtt));
     room.members.forEach((m, i) => {
       m.slot = i;
-      m.lastK = room.delay - 1;
+      m.lastK = room.gameDelay - 1;
     });
     room.phase = 'playing';
     const seed = randomInt(1, 0xffffffff);
     const players = room.members.map((m) => ({ slot: m.slot, name: m.name, character: m.character }));
     for (const m of room.members) {
-      send(m, { t: 'start', seed, delay: room.delay, opts: room.opts, players, you: m.slot });
+      send(m, { t: 'start', seed, delay: room.gameDelay, opts: room.opts, players, you: m.slot });
     }
     log(`sala ${room.code}: partida com ${players.length} jogador(es)`);
   };
@@ -103,7 +113,7 @@ export function attachRelay(httpServer, { path = '/coop', log = () => {} } = {})
     }
     if (room.hostId === m.id) room.hostId = room.members[0].id;
     if (room.phase === 'playing') {
-      everyone(room, { t: 'left', s: m.slot, last: Math.max(m.lastK ?? 0, room.delay - 1) });
+      everyone(room, { t: 'left', s: m.slot, last: Math.max(m.lastK ?? 0, room.gameDelay - 1) });
       everyone(room, { t: 'host', id: room.hostId });
     }
     broadcastRoom(room);
@@ -111,7 +121,8 @@ export function attachRelay(httpServer, { path = '/coop', log = () => {} } = {})
 
   let nextId = 1;
   wss.on('connection', (ws) => {
-    const m = { ws, id: nextId++, name: 'Jogador', room: null, character: null, ready: false, slot: null, lastK: 0 };
+    const m = { ws, id: nextId++, name: 'Jogador', room: null, character: null, ready: false, slot: null, lastK: 0, rtt: 0 };
+    ws.member = m;
     ws.on('close', () => leave(m));
     ws.on('error', () => {});
     ws.on('message', (data) => {
@@ -133,7 +144,7 @@ export function attachRelay(httpServer, { path = '/coop', log = () => {} } = {})
           if (msg.t === 'create') {
             const code = newCode();
             if (!code) return send(m, { t: 'error', msg: 'Não foi possível criar a sala. Tente de novo.' });
-            target = { code, members: [], hostId: m.id, phase: 'lobby', delay: 6, opts: { repeatInteractions: false, autoCutscene: false } };
+            target = { code, members: [], hostId: m.id, phase: 'lobby', delay: 0, gameDelay: 6, opts: { repeatInteractions: false, autoCutscene: false } };
             rooms.set(code, target);
           } else {
             target = rooms.get(String(msg.code ?? '').toUpperCase().trim());
@@ -201,21 +212,26 @@ export function attachRelay(httpServer, { path = '/coop', log = () => {} } = {})
     });
   });
 
-  // Derruba conexões mortas e mantém túneis (ngrok, cloudflared) acordados.
+  // A cada 2 s: mede o ping de cada jogador (e mostra no lobby), derruba conexões mortas e mantém túneis acordados.
   const timer = setInterval(() => {
     for (const ws of wss.clients) {
-      if (ws.isAlive === false) {
+      if (ws.missed > 10) {
         ws.terminate();
         continue;
       }
-      ws.isAlive = false;
+      ws.missed = (ws.missed ?? 0) + 1;
+      ws.pingAt = Date.now();
       ws.ping();
     }
-  }, 20000);
+    for (const room of rooms.values()) if (room.phase === 'lobby') broadcastRoom(room);
+  }, 2000);
   timer.unref?.();
   wss.on('connection', (ws) => {
-    ws.isAlive = true;
-    ws.on('pong', () => (ws.isAlive = true));
+    ws.missed = 0;
+    ws.on('pong', () => {
+      ws.missed = 0;
+      if (ws.member && ws.pingAt) ws.member.rtt = Date.now() - ws.pingAt;
+    });
   });
 
   return { wss, rooms, close: () => clearInterval(timer) };

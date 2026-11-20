@@ -8,6 +8,8 @@ export interface Member {
   name: string;
   character: CharacterId | null;
   ready: boolean;
+  /** Ping até o servidor, em ms (0 = ainda não medido). */
+  rtt: number;
 }
 
 export interface RoomState {
@@ -17,6 +19,8 @@ export interface RoomState {
   host: number;
   phase: 'lobby' | 'playing';
   delay: number;
+  /** Atraso que o modo automático usaria agora. */
+  autoDelay: number;
   members: Member[];
 }
 

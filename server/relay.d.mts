@@ -6,6 +6,7 @@ export interface UpgradeCapable {
 export const MAX_PLAYERS: number;
 export const CHARACTERS: string[];
 export const DELAYS: number[];
+export function autoDelay(rtts: number[]): number;
 export function attachRelay(
   httpServer: UpgradeCapable,
   options?: { path?: string; log?: (msg: string) => void },
