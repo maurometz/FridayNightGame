@@ -36,6 +36,8 @@ import { drawVortice, fatorTransicao } from './transicaoTempo';
 import { zonaSegura } from '../combat/safeRoom';
 import { drawEventos } from './eventDraw';
 import { quadroDoInimigo } from './enemyFrames';
+import { desenharChao, temCenario } from './cenarios';
+import { marcadoDoPique, REGRA, regraAtiva } from '../combat/christopher';
 
 /** Cores do piso por ato: [ladrilho A, ladrilho B, linha de emenda]. */
 const FLOOR_COLORS: Record<string, [string, string, string]> = {
@@ -65,6 +67,7 @@ const HELD_FELIPE: Partial<Record<string, HeldPose>> = {
   violao: { arma: 'violao', x: 8, y: -12, parado: -0.3, ataque: -0.6, ataqueX: 3 },
   bateria: { arma: 'bateria', x: 9, y: -9, parado: 0, ataque: 0, ataqueX: 2 },
   flauta: { arma: 'flauta', x: 9, y: -14, parado: -0.2, ataque: -0.5, ataqueX: 3, provisoria: 'flauta' },
+  viola: { arma: 'viola', x: 8, y: -13, parado: -0.35, ataque: -0.7, ataqueX: 3 },
   kazoo: { arma: 'kazoo', x: 9, y: -14, parado: -0.2, ataque: -0.5, ataqueX: 3 },
 };
 
@@ -130,11 +133,13 @@ export class Renderer {
     }
     this.drawFloor(world, camX, camY);
     this.drawScenery(world, camX, camY);
+    this.drawLava(world);
     this.drawAuras(world, camX, camY);
     this.drawHazards(world, camX, camY);
     this.drawGems(world, camX, camY);
     this.drawEnemies(world, camX, camY);
     this.drawFusao(world, camX, camY);
+    this.drawJuninho(world, camX, camY);
     this.drawLucas(world, camX, camY);
 
     for (const p of world.players) {
@@ -147,6 +152,7 @@ export class Renderer {
       if ((p.slot > 0 || this.coop) && !dead) this.drawAllyName(p, x, y);
       if (dead) this.drawFallen(world, p, x, y);
     }
+    this.drawMarcaPique(world, camX, camY);
     // Melissa convidada da luta do RM (não é jogadora): desenhada como as outras, com o nome acima.
     const conv = world.convidada;
     if (conv) {
@@ -330,6 +336,11 @@ export class Renderer {
     const piso = PHASES[world.act]?.floor;
     const tema = !piso ? 'madeira' : piso === 'arena' ? 'pedra' : piso;
     const cores = FLOOR_COLORS[tema] ?? FLOOR_COLORS.madeira!;
+    // Cenário procedural da fase (casa, cidade, parque...). A Arena do Tempo segue com o piso antigo.
+    if (temCenario(world.act)) {
+      desenharChao(ctx, world.act, camX, camY, world.tick);
+      return;
+    }
     // Textura externa da fase (se existir): repete e anda junto com a câmera.
     const chave = world.act >= 7 ? 'extra' : `fase${world.act + 1}`;
     const textura = this.sprites.getPiso(chave);
@@ -498,7 +509,8 @@ export class Renderer {
         ctx.lineWidth = h.thickness;
         ctx.globalAlpha = 0.65;
         ctx.beginPath();
-        ctx.arc(x, y, Math.max(1, h.radius), 0, Math.PI * 2);
+        if (h.gapHalf > 0) ctx.arc(x, y, Math.max(1, h.radius), h.gapAngle + h.gapHalf, h.gapAngle - h.gapHalf + Math.PI * 2);
+        else ctx.arc(x, y, Math.max(1, h.radius), 0, Math.PI * 2);
         ctx.stroke();
         ctx.globalAlpha = 1;
         continue;
@@ -619,6 +631,20 @@ export class Renderer {
           ctx.stroke();
           break;
         }
+        case 'email': // e-mail do Juninho
+          if (this.desenharProjetilHostil('email', h, x, y, world.tick)) break;
+          ctx.fillStyle = '#f5f1e3';
+          ctx.fillRect(x - 4, y - 3, 8, 6);
+          ctx.fillStyle = '#3a86ff';
+          ctx.fillRect(x - 4, y - 3, 8, 2);
+          break;
+        case 'ironia': // ironia da Melina
+          if (this.desenharProjetilHostil('ironia', h, x, y, world.tick)) break;
+          ctx.fillStyle = '#9fd0ff';
+          ctx.fillRect(x - 3, y - 3, 6, 6);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(x - 1, y - 1, 2, 2);
+          break;
         case 'tinta': // tinta azul das Azuletes
           if (this.desenharProjetilHostil('tinta', h, x, y, world.tick)) break;
           ctx.fillStyle = '#2f7bff';
@@ -652,6 +678,94 @@ export class Renderer {
     ctx.drawImage(q, -Math.round(q.width / 2), -Math.round(q.height / 2));
     ctx.restore();
     return true;
+  }
+
+  /** Regra "o chão é lava" do Christopher: o chão avermelha e pulsa (os tapetes seguros aparecem por cima, como perigos). */
+  private drawLava(world: World): void {
+    const chefe = world.enemies.active.find((e) => e.alive && e.def.id === 'christopher' && e.leader === 0);
+    if (!chefe || chefe.aiDir !== REGRA.LAVA) return;
+    const ctx = this.ctx;
+    const ativa = regraAtiva(chefe);
+    const pulso = 0.5 + 0.5 * Math.sin(world.tick / 10);
+    ctx.globalAlpha = ativa ? 0.2 + 0.08 * pulso : 0.06 + 0.06 * pulso; // no aviso, só um brilho fraco
+    ctx.fillStyle = '#ff5a1e';
+    ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+    ctx.globalAlpha = 1;
+  }
+
+  /** Pique-pega: anel e contagem em volta de quem está com a marca. */
+  private drawMarcaPique(world: World, camX: number, camY: number): void {
+    const chefe = world.enemies.active.find((e) => e.alive && e.def.id === 'christopher' && e.leader === 0);
+    if (!chefe) return;
+    const p = marcadoDoPique(world, chefe);
+    if (!p) return;
+    const ctx = this.ctx;
+    const x = Math.round(p.x) - camX;
+    const y = Math.round(p.y) - camY;
+    const urgente = chefe.aiV < 2 && Math.floor(world.tick / 5) % 2 === 0;
+    const arte = this.sprites.getProjetil('marca_pique');
+    if (arte) {
+      const q = arte.quadros[Math.floor(world.tick / 6) % arte.quadros.length]!;
+      ctx.drawImage(q, x - Math.round(arte.w / 2), y - 30 - Math.round(arte.h / 2));
+    } else {
+      ctx.strokeStyle = urgente ? '#ff5a5a' : '#ffd166';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y - 6, 14 + Math.sin(world.tick / 6) * 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.font = FONT_UI;
+    ctx.textAlign = 'center';
+    textoContornado(ctx, `PEGADOR ${Math.ceil(Math.max(0, chefe.aiV))}`, x, y - 40, urgente ? '#ff8a8a' : '#ffe9a8');
+    ctx.textAlign = 'left';
+  }
+
+  /** Juninho: dois drones orbitando e a bolha do escudo da Melina (imagens, ou desenho por código sem elas). */
+  private drawJuninho(world: World, camX: number, camY: number): void {
+    const j = world.enemies.active.find((e) => e.alive && e.def.id === 'juninho' && e.leader === 0);
+    if (!j) return;
+    const ctx = this.ctx;
+    const x = Math.round(j.x) - camX;
+    const y = Math.round(j.y) - camY;
+    // Drones: dois, em lados opostos.
+    const drone = this.sprites.getProjetil('drone');
+    for (let i = 0; i < 2; i++) {
+      const a = world.tick / 40 + i * Math.PI;
+      const dx = x + Math.round(Math.cos(a) * 30);
+      const dy = y - 26 + Math.round(Math.sin(a) * 10);
+      if (drone) {
+        const q = drone.quadros[(Math.floor(world.tick / 4) + i) % drone.quadros.length]!;
+        ctx.drawImage(q, dx - Math.round(drone.w / 2), dy - Math.round(drone.h / 2));
+      } else {
+        ctx.fillStyle = '#2b2f3a';
+        ctx.fillRect(dx - 4, dy - 2, 8, 4);
+        ctx.fillStyle = Math.floor(world.tick / 8) % 2 === 0 ? '#ff4d4d' : '#4db3ff';
+        ctx.fillRect(dx - 1, dy - 1, 2, 2);
+      }
+    }
+    // Escudo da Melina: bolha em volta do Juninho (pisca quando está acabando).
+    if (j.aiY > 0) {
+      const fim = j.aiW < 1.5 && Math.floor(world.tick / 6) % 2 === 0;
+      const forca = Math.max(0.25, j.aiY / (j.aiDir || 1));
+      ctx.globalAlpha = fim ? 0.2 : 0.35 + 0.3 * forca;
+      const arte = this.sprites.getProjetil('escudo_juninho');
+      const r = j.def.radius + 10;
+      if (arte) {
+        const q = arte.quadros[Math.min(arte.quadros.length - 1, 1 + (Math.floor(world.tick / 8) % Math.max(1, arte.quadros.length - 2)))]!;
+        ctx.drawImage(q, x - r, y - r - 6, r * 2, r * 2);
+      } else {
+        ctx.strokeStyle = '#9fd0ff';
+        ctx.fillStyle = '#9fd0ff';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha *= 0.5;
+        ctx.beginPath();
+        ctx.arc(x, y - 6, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = fim ? 0.3 : 0.9;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
   }
 
   /** O Lucas entra em cena na fase 3 do Tiago W: blazer preto, careca, cajado que brilha. */
@@ -712,7 +826,7 @@ export class Renderer {
       // Chefe aquecendo ou preparando um ataque: pisca em vermelho (aviso).
       const avisando = e.def.boss && (e.aiState === 1 || e.aiState === 2) && Math.floor(e.aiT * 6) % 2 === 0;
       // Folha animada externa (se existir) ou o desenho por código.
-      const idSprite = ehSalsichao && this.sprites.tipoDaFolha('salsichao') ? 'salsichao' : e.def.id;
+      const idSprite = ehSalsichao && this.sprites.tipoDaFolha('salsichao') ? 'salsichao' : e.def.id === 'christopherCopia' ? 'christopher' : e.def.id;
       const tipoFolha = this.sprites.tipoDaFolha(idSprite);
       const quadro = tipoFolha ? quadroDoInimigo(world, e, tipoFolha, this.reduceFlash) : null;
       const spr = (quadro ? this.sprites.getEnemyFrame(idSprite, quadro) : null) ?? this.sprites.getEnemy(idSprite);
@@ -920,6 +1034,14 @@ export class Renderer {
       modos.forEach((m, i) => {
         const radius = r - i * 3;
         const cor = m === 'euforia' ? COR_EUFORIA : COR_SOBRECARGA;
+        const arte = this.sprites.getProjetil(m === 'euforia' ? 'thayssaAuraEuforia' : 'thayssaAuraSobrecarga');
+        if (arte) {
+          // Aura da imagem: anel em loop, do tamanho da aura (esmaece durante a transição de modo).
+          const q = arte.quadros[Math.floor(world.tick / 8) % arte.quadros.length]!;
+          ctx.globalAlpha = (trans ? 0.12 : 0.3 + 0.05 * pulse) * (modos.length > 1 ? 0.8 : 1); // suave: não cobre a personagem
+          ctx.drawImage(q, Math.round(x - radius), Math.round(y - radius), Math.round(radius * 2), Math.round(radius * 2));
+          return;
+        }
         ctx.globalAlpha = trans ? 0.12 : 0.14 + 0.06 * pulse;
         ctx.fillStyle = cor;
         ctx.beginPath();
@@ -1073,6 +1195,12 @@ export class Renderer {
         const pos = posicaoDoLivro(p, k, i);
         const x = Math.round(pos.x) - camX;
         const y = Math.round(pos.y) - camY;
+        const livro = this.sprites.getProjetil('livro_orbita');
+        if (livro) {
+          const q = livro.quadros[(Math.floor(world.tick / 6) + i) % livro.quadros.length]!;
+          ctx.drawImage(q, x - Math.round(livro.w / 2), y - Math.round(livro.h / 2));
+          continue;
+        }
         ctx.fillStyle = '#8b5a2b';
         ctx.fillRect(x - 4, y - 5, 8, 10);
         ctx.fillStyle = '#f4e3b2';
@@ -1362,9 +1490,26 @@ export class Renderer {
       if (pose.frente) this.drawVehicle(mont.id, p, x, y, tick);
       if (!pose.cobre) this.drawHeldWeapon(p, x, y - assento, tick, frame === 'attack');
     } else {
+      this.drawAuraSuper(p, x, y, tick);
       this.sprites.desenhar(ctx, p.characterId, frame, x, y, p.facing);
       this.drawHeldWeapon(p, x, y, tick, frame === 'attack');
     }
+  }
+
+  /** Supervelocidade do Felipe: aura de linhas de velocidade por trás dele (as linhas ficam atrás de quem corre). */
+  private drawAuraSuper(p: Player, x: number, y: number, tick: number): void {
+    const k = p.kit;
+    if (k?.type !== 'felipe' || k.speedBuffLeft <= 0 || p.hp <= 0) return;
+    const aura = this.sprites.getProjetil('supervelocidade');
+    if (!aura) return;
+    const q = aura.quadros[Math.floor(tick / 4) % aura.quadros.length]!;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = 0.75;
+    ctx.translate(x, y - Math.round(this.sprites.get(p.characterId).h / 2));
+    ctx.scale(p.facing, 1);
+    ctx.drawImage(q, -Math.round(aura.w / 2), -Math.round(aura.h / 2));
+    ctx.restore();
   }
 
   /** Veículo: imagem externa (se existir) ou desenho por código, com os pés/rodas em (x, y). */

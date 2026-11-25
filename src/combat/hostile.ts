@@ -8,7 +8,8 @@ import { wrapAngle } from '../engine/math';
 import type { World } from '../engine/world';
 import { spawnEffect } from './effects';
 import { damagePlayer } from './playerStats';
-import { hitPlayer } from './teamEffects';
+import { addBuff, hitPlayer } from './teamEffects';
+import { JUNINHO_CFG } from '../data/bosses';
 
 export interface HazardSpec {
   kind?: HazardKind;
@@ -23,6 +24,8 @@ export interface HazardSpec {
   dps?: number;
   slowFor?: number;
   expand?: number;
+  gapAngle?: number;
+  gapHalf?: number;
   maxRadius?: number;
   thickness?: number;
   /** Empurrão no impacto (ver Hazard.push). */
@@ -48,6 +51,8 @@ export function spawnHazard(world: World, s: HazardSpec): Hazard | null {
   h.dps = s.dps ?? 0;
   h.slowFor = s.slowFor ?? 0;
   h.expand = s.expand ?? 0;
+  h.gapAngle = s.gapAngle ?? 0;
+  h.gapHalf = s.gapHalf ?? 0;
   h.maxRadius = s.maxRadius ?? s.radius;
   h.thickness = s.thickness ?? 8;
   h.push = s.push ?? 0;
@@ -143,6 +148,8 @@ export function updateHazards(world: World): void {
         if (p.hp <= 0 || h.hit.includes(p.slot)) continue;
         const d = Math.hypot(p.x - h.x, p.y - h.y);
         if (Math.abs(d - h.radius) <= h.thickness / 2 + PLAYER_RADIUS) {
+          // Anel com vão: quem está no vão passa sem levar dano.
+          if (h.gapHalf > 0 && Math.abs(wrapAngle(Math.atan2(p.y - h.y, p.x - h.x) - h.gapAngle)) < h.gapHalf) continue;
           h.hit.push(p.slot);
           machucar(world, p, h.damage);
         }
@@ -210,6 +217,12 @@ export function updateHostiles(world: World): void {
       if (p.hp <= 0) continue;
       if ((p.x - h.x) ** 2 + (p.y - 8 - h.y) ** 2 > (h.radius + PLAYER_RADIUS) ** 2) continue;
       if (machucar(world, p, h.damage)) {
+        if (h.kind === 'ironia') {
+          // Ironia da Melina: debuff de dano e velocidade de ataque.
+          const d = JUNINHO_CFG.melina.debuff;
+          addBuff(p, { id: 'ironia', left: d.s, damage: d.damage, attack: d.attack });
+          spawnEffect(world, { kind: 'text', x: p.x, y: p.y - 30, life: 1, color: '#9fd0ff', text: 'Ironia...' });
+        }
         h.alive = false;
         break;
       }

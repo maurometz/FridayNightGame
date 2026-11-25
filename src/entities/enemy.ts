@@ -67,6 +67,11 @@ export interface Enemy extends Poolable {
   aiT2: number;
   /** Contagem do ataque de empurrar do RM em volta da encantada (ver combat/bosses.ts). */
   aiW: number;
+  /** Auxiliares dos chefes novos (Christopher: slot marcado no pique-pega, cronômetros, esconde-esconde). */
+  aiU: number;
+  aiV: number;
+  aiS: number;
+  aiR: number;
 }
 
 export function createEnemy(): Enemy {
@@ -110,5 +115,9 @@ export function createEnemy(): Enemy {
     resist: 0,
     aiT2: 0,
     aiW: 0,
+    aiU: -1,
+    aiV: 0,
+    aiS: 0,
+    aiR: 0,
   };
 }

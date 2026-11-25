@@ -96,7 +96,7 @@ function vigorPorCachorro(lider: Enemy): number {
  */
 export function danoNoCachorro(world: World, d: Enemy, amount: number): void {
   const lider = d.leader === 0 ? d : world.enemies.active.find((x) => x.uid === d.leader && x.alive);
-  if (!lider || lider.aiT2 !== 2 || estaExausto(d)) return;
+  if (!lider || lider.def.id !== 'salsichas' || lider.aiT2 !== 2 || estaExausto(d)) return;
   d.aiW -= amount;
   if (d.aiW > 0) return;
   d.aiState = BOSS_STATE.EXAUSTO;

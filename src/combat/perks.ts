@@ -99,7 +99,7 @@ function requiem(world: World, victim: Player): void {
     }
     damageArea(world, victim.x, victim.y - 8, REQUIEM_RADIUS, REQUIEM_DAMAGE * f.damageMul, f);
     spawnEffect(world, { kind: 'text', x: victim.x, y: victim.y - 34, life: 1.6, color: '#c9f5d2', text: 'Réquiem da Morte!' });
-    spawnEffect(world, { kind: 'ring', x: victim.x, y: victim.y - 8, radius: REQUIEM_RADIUS, life: 0.6, color: '#9be7a8' });
+    spawnEffect(world, { kind: 'ring', x: victim.x, y: victim.y - 8, radius: REQUIEM_RADIUS, life: 0.8, color: '#9be7a8', sprite: 'requiem' });
     return;
   }
 }

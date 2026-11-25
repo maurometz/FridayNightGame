@@ -56,7 +56,7 @@ export const COLLECTIBLES: readonly CollectibleDef[] = [
  * Máximo de colecionáveis que podem aparecer em uma única run.
  * Menor que o total de propósito: nunca dá para coletar os 14 de uma vez.
  */
-export const MAX_COLLECTIBLES_PER_RUN = 7;
+export const MAX_COLLECTIBLES_PER_RUN = 3;
 
 /** Máximo por mapa. */
 export const MAX_COLLECTIBLES_PER_PHASE = 2;

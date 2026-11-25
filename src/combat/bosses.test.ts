@@ -24,6 +24,8 @@ import { estaExausto, faseDaLuta, salsichaoFundido } from './salsichas';
 import { spawnFood } from './foods';
 import { FOODS } from '../data/foods';
 import { damageEnemy } from './enemies';
+import { spawnHazard, spawnHostile } from './hostile';
+import { COR_TAPETE, duracaoDaRegra, esconderIniciar, iniciarRegra, piqueIniciar, REGRA, regraAtiva } from './christopher';
 
 type Char = 'felipe' | 'thaisa' | 'melissa' | 'thayssa' | 'mauro';
 
@@ -99,7 +101,8 @@ describe('Chefes: aviso de pelo menos 1 s antes de cada ataque', () => {
       JUNINHO_CFG.cronograma.warnS,
       RM_CFG.holofotes.warnS,
       CHRISTOPHER_CFG.birra.warnS,
-      CHRISTOPHER_CFG.meteoros.warnS,
+      CHRISTOPHER_CFG.brinquedos.warnS,
+      CHRISTOPHER_CFG.regras.avisoS,
       ALE_CFG.apito.warnS,
       ALE_CFG.fila.warnS,
       TIAGOW_CFG.tiros.warnS,
@@ -382,6 +385,23 @@ describe('As Salsichas (fase 1)', () => {
 });
 
 describe('Juninho e as Azuletes (fase 3)', () => {
+  const azuletes = (w: World, j: Enemy) => ({
+    mariana: w.enemies.active.find((x) => x.def.id === 'mariana' && x.leader === j.uid)!,
+    melina: w.enemies.active.find((x) => x.def.id === 'melina' && x.leader === j.uid)!,
+  });
+
+  it('a Mariana e a Melina estão em campo desde o início e dividem a vida do Juninho', () => {
+    const w = mundo();
+    const j = chefe(w, JUNINHO);
+    const { mariana, melina } = azuletes(w, j);
+    expect(mariana).toBeDefined();
+    expect(melina).toBeDefined();
+    expect(chefeVivo(w)).toBe(j); // só o Juninho conta como chefe (a barra de vida é uma só)
+    const antes = j.hp;
+    damageEnemy(w, mariana, 40, undefined);
+    expect(j.hp).toBe(antes - 40);
+  });
+
   it('lasers miram a posição dos jogadores com aviso', () => {
     const w = mundo();
     const e = chefe(w, JUNINHO);
@@ -392,25 +412,155 @@ describe('Juninho e as Azuletes (fase 3)', () => {
     expect(h).toBeDefined();
   });
 
-  it('a cada 3 ataques as Azuletes entram: Café Hiperativo (Mariana) e Canhotos (Melina)', () => {
-    const w = mundo();
-    const e = chefe(w, JUNINHO);
-    e.aiCount = JUNINHO_CFG.azuletesEvery - 1;
-    atacar(e);
-    step(w, 2);
-    const tipos = new Set(w.enemies.active.filter((x) => !x.def.boss).map((x) => x.def.id));
-    expect(tipos.has('cafe')).toBe(true);
-    expect(tipos.has('canhoto')).toBe(true);
-    expect(w.messages.some((m) => m.speaker === 'Juninho')).toBe(true);
-  });
-
-  it('as zonas de cronograma atrasam quem passa', () => {
+  it('as zonas de cronograma atrasam quem passa e, quando o prazo acaba, explodem', () => {
     const w = mundo();
     const e = chefe(w, JUNINHO);
     e.aiCount = 1; // próximo é par: cronograma
     atacar(e);
     step(w, 2);
     expect(w.hazards.active.some((h) => h.slowFor === JUNINHO_CFG.cronograma.slowFor)).toBe(true);
+    const c = JUNINHO_CFG.cronograma;
+    expect(w.hazards.active.some((h) => h.damage === c.prazoDamage && h.warnTotal > c.warnS)).toBe(true);
+  });
+
+  it('a notificação de e-mail solta um leque de projéteis', () => {
+    const w = mundo();
+    const e = chefe(w, JUNINHO);
+    e.aiCount = 2; // próximo é o 3
+    atacar(e);
+    step(w, 2);
+    expect(w.hostiles.active.filter((h) => h.kind === 'email')).toHaveLength(JUNINHO_CFG.email.count);
+  });
+
+  it('a reunião obrigatória puxa os jogadores para o centro', () => {
+    const w = mundo();
+    const e = chefe(w, JUNINHO);
+    e.aiCount = 3; // próximo é o 4
+    atacar(e);
+    step(w, 2);
+    const h = w.hazards.active.find((x) => x.push < 0);
+    expect(h).toBeDefined();
+    expect(h!.warnTotal).toBeGreaterThanOrEqual(MIN_TELEGRAPH_S);
+  });
+
+  it('a Mariana investe deixando tinta no chão e, depois de algumas investidas, fica sem fôlego', () => {
+    const w = mundo();
+    const j = chefe(w, JUNINHO);
+    j.aiCd = 1e9; // o Juninho espera: observamos só a Mariana
+    const { mariana } = azuletes(w, j);
+    mariana.aiCd = 0;
+    step(w, 3);
+    expect(mariana.aiState).toBe(BOSS_STATE.PREPARANDO);
+    expect(w.hazards.active.some((h) => h.sprite === 'poca_tinta')).toBe(true);
+    let exausta = false;
+    for (let i = 0; i < 900 && !exausta; i++) {
+      step(w, 1);
+      exausta = mariana.aiState === BOSS_STATE.EXAUSTO;
+    }
+    expect(exausta).toBe(true);
+  });
+
+  it('sem fôlego, a Mariana leva dano extra', () => {
+    const w = mundo();
+    const j = chefe(w, JUNINHO);
+    const { mariana } = azuletes(w, j);
+    mariana.aiState = BOSS_STATE.EXAUSTO;
+    mariana.aiT = 5;
+    const antes = j.hp;
+    damageEnemy(w, mariana, 100, undefined);
+    expect(j.hp).toBeCloseTo(antes - 100 * JUNINHO_CFG.mariana.exaustaDanoMul, 5);
+  });
+
+  it('a Mariana tropeça numa zona de cronograma e cansa na hora', () => {
+    const w = mundo();
+    const j = chefe(w, JUNINHO);
+    j.aiCd = 1e9;
+    const { mariana } = azuletes(w, j);
+    mariana.x = 0;
+    mariana.y = 0;
+    mariana.aiState = BOSS_STATE.CARGA;
+    mariana.aiDir = 0;
+    mariana.aiY = 0;
+    mariana.aiCount = 0;
+    const h = w.hazards.acquire()!;
+    Object.assign(h, { kind: 'circle', x: 6, y: 0, radius: 30, delay: 0, warnTotal: 0, life: 5, damage: 0, dps: 0, slowFor: 3, expand: 0, maxRadius: 30, thickness: 8, push: 0, pushS: 0, color: '#6ea8ff', sprite: '', active: true, alive: true });
+    step(w, 2);
+    expect(mariana.aiState).toBe(BOSS_STATE.EXAUSTO);
+  });
+
+  it('a Melina bota um escudo no Juninho que absorve dano e, ao quebrar, deixa o grupo atordoado', () => {
+    const w = mundo();
+    const j = chefe(w, JUNINHO);
+    j.aiCd = 1e9;
+    const { melina, mariana } = azuletes(w, j);
+    melina.aiT2 = 0;
+    melina.aiCd = 1e9;
+    step(w, Math.ceil((JUNINHO_CFG.melina.escudoWarnS + 0.5) * 60));
+    expect(j.aiY).toBeGreaterThan(0);
+    const escudo = j.aiY;
+    const antes = j.hp;
+    damageEnemy(w, j, escudo / 2, undefined);
+    expect(j.hp).toBe(antes); // o escudo segurou
+    damageEnemy(w, j, escudo, undefined); // quebra
+    expect(j.aiY).toBe(0);
+    expect(j.hp).toBe(antes);
+    expect(j.stun).toBeGreaterThan(0);
+    expect(mariana.stun).toBeGreaterThan(0);
+    damageEnemy(w, j, 50, undefined); // sem escudo, o dano passa
+    expect(j.hp).toBe(antes - 50);
+  });
+
+  it('acertar a Melina com o escudo ativo o desgasta em dobro', () => {
+    const w = mundo();
+    const j = chefe(w, JUNINHO);
+    const { melina } = azuletes(w, j);
+    j.aiY = j.aiDir = 100;
+    j.aiW = 7;
+    damageEnemy(w, melina, 20, undefined);
+    expect(j.aiY).toBe(60);
+  });
+
+  it('a Melina lança ironias e quem leva uma fica com debuff de dano e ataque', () => {
+    const w = mundo();
+    const j = chefe(w, JUNINHO);
+    j.aiCd = 1e9;
+    const { melina } = azuletes(w, j);
+    melina.aiT2 = 1e9; // sem escudo nesta hora
+    melina.aiCd = 0;
+    step(w, 2);
+    expect(w.hostiles.active.some((h) => h.kind === 'ironia')).toBe(true);
+    // Uma ironia que acerta o jogador.
+    const p = w.players[0]!;
+    spawnHostile(w, { kind: 'ironia', x: p.x, y: p.y - 8, angle: 0, speed: 0, damage: 4, life: 1 });
+    step(w, 2);
+    const b = p.buffs.find((x) => x.id === 'ironia');
+    expect(b).toBeDefined();
+    expect(b!.damage).toBe(JUNINHO_CFG.melina.debuff.damage);
+    expect(b!.attack).toBe(JUNINHO_CFG.melina.debuff.attack);
+  });
+
+  it('as fases vêm pela vida restante e a fase 3 tem hora extra', () => {
+    const w = mundo();
+    const j = chefe(w, JUNINHO);
+    j.hp = j.aiX * 0.5;
+    step(w, 2);
+    expect(j.aiT2).toBe(2);
+    j.hp = j.aiX * 0.2;
+    j.aiCount = 3;
+    atacar(j);
+    step(w, 2);
+    expect(j.aiT2).toBe(3);
+    expect(w.messages.some((m) => m.speaker === 'Juninho' && /Hora extra/.test(m.text))).toBe(true);
+  });
+
+  it('derrotar o Juninho leva as Azuletes junto', () => {
+    const w = mundo();
+    const j = chefe(w, JUNINHO);
+    const { mariana, melina } = azuletes(w, j);
+    damageEnemy(w, j, 1e9, undefined);
+    expect(j.alive).toBe(false);
+    expect(mariana.alive).toBe(false);
+    expect(melina.alive).toBe(false);
   });
 });
 
@@ -712,32 +862,215 @@ describe('RM (fase 4): encanto e transe', () => {
 });
 
 describe('Christopher (fase 5)', () => {
-  it('ignorado por muito tempo, entra em birra e solta ondas', () => {
+  const copias = (w: World) => w.enemies.active.filter((x) => x.def.id === 'christopherCopia');
+
+  it('começa com atenção média e em fase 1', () => {
+    const w = mundo();
+    const e = chefe(w, CHRISTOPHER);
+    expect(e.aiW).toBe(CHRISTOPHER_CFG.atencao.inicio);
+    step(w, 2);
+    expect(e.aiT2).toBe(1);
+  });
+
+  it('com alguém perto a atenção sobe; sem ninguém perto ela desce', () => {
+    const w = mundo();
+    const e = chefe(w, CHRISTOPHER);
+    e.aiCd = 1e9;
+    e.x = 30;
+    e.y = 0;
+    const a0 = e.aiW;
+    step(w, 60);
+    expect(e.aiW).toBeGreaterThan(a0);
+    e.x = 5000;
+    const a1 = e.aiW;
+    step(w, 60);
+    expect(e.aiW).toBeLessThan(a1);
+  });
+
+  it('atenção zerada: birra com anéis que têm vão, depois ele chora exausto e leva dano extra', () => {
     const w = mundo();
     const e = chefe(w, CHRISTOPHER);
     e.x = 5000;
-    e.aiCd = 1e9; // sem ataques normais
-    step(w, 60 * (CHRISTOPHER_CFG.birraAfterS + 1));
-    expect(w.messages.some((m) => m.text.includes('NINGUÉM ME OLHA'))).toBe(true);
-    expect(aneis(w)).toBeGreaterThan(0);
-  });
-
-  it('com alguém por perto (atenção), não faz birra', () => {
-    const w = mundo();
-    const e = chefe(w, CHRISTOPHER);
-    e.x = 40;
     e.aiCd = 1e9;
-    step(w, 60 * (CHRISTOPHER_CFG.birraAfterS + 2));
-    expect(w.messages.some((m) => m.text.includes('NINGUÉM ME OLHA'))).toBe(false);
+    e.aiW = 1;
+    step(w, 30);
+    expect(w.messages.some((m) => m.text.includes('NINGUÉM ME OLHA'))).toBe(true);
+    step(w, 60);
+    const aneis = w.hazards.active.filter((h) => h.kind === 'ring');
+    expect(aneis.length).toBeGreaterThan(0);
+    expect(aneis.every((h) => h.gapHalf > 0)).toBe(true);
+    for (let i = 0; i < 60 * 8 && e.aiState !== BOSS_STATE.EXAUSTO; i++) step(w, 1);
+    expect(e.aiState).toBe(BOSS_STATE.EXAUSTO);
+    const antes = e.hp;
+    damageEnemy(w, e, 100, undefined);
+    expect(e.hp).toBeCloseTo(antes - 100 * CHRISTOPHER_CFG.birra.exaustoDanoMul, 5);
   });
 
-  it('muda as regras: inverte os controles por um instante', () => {
+  it('o anel da birra não machuca quem está no vão', () => {
+    const w = mundo();
+    const p = w.players[0]!;
+    p.hp = p.maxHp = 100;
+    p.x = 50;
+    p.y = 0;
+    spawnHazard(w, { kind: 'ring', x: 0, y: 0, radius: 50, delay: 0, expand: 0.0001, maxRadius: 300, thickness: 12, damage: 16, gapAngle: 0, gapHalf: 0.5 });
+    step(w, 3);
+    expect(p.hp).toBe(100); // no vão (direção 0): ileso
+    p.x = 0;
+    p.y = 50; // fora do vão
+    p.invuln = 0;
+    step(w, 3);
+    expect(p.hp).toBeLessThan(100);
+  });
+
+  it('a chuva de brinquedos solta bolas com aviso', () => {
     const w = mundo();
     const e = chefe(w, CHRISTOPHER);
-    e.aiCount = CHRISTOPHER_CFG.regraEvery - 1;
+    e.x = 30;
+    e.aiCount = 0; // próximo é o 1º ataque da fase 1: brinquedos
     atacar(e);
     step(w, 2);
-    expect(w.players[0]!.confusedLeft).toBeGreaterThan(0);
+    const c = CHRISTOPHER_CFG.brinquedos;
+    const bolas = w.hazards.active.filter((h) => h.sprite === 'brinquedo');
+    expect(bolas.length).toBe(c.bolas * c.passos);
+    expect(bolas.every((h) => h.warnTotal >= MIN_TELEGRAPH_S)).toBe(true);
+  });
+
+  it('pique-pega: marca um jogador; passar por toque a um aliado transfere a marca', () => {
+    const w = mundo(['felipe', 'mauro']);
+    const e = chefe(w, CHRISTOPHER);
+    e.x = 30;
+    e.aiCd = 1e9;
+    expect(piqueIniciar(w, e)).toBe(true);
+    const marcado = w.players.find((p) => p.slot === e.aiU)!;
+    const outro = w.players.find((p) => p !== marcado)!;
+    outro.x = marcado.x + 5;
+    outro.y = marcado.y;
+    step(w, 2);
+    expect(e.aiU).toBe(outro.slot);
+  });
+
+  it('pique-pega: se ninguém passar a marca, ela explode em quem a carrega', () => {
+    const w = mundo(['felipe', 'mauro']);
+    const e = chefe(w, CHRISTOPHER);
+    e.x = 30;
+    e.aiCd = 1e9;
+    w.players[0]!.x = -300;
+    w.players[1]!.x = 300;
+    piqueIniciar(w, e);
+    step(w, Math.ceil(CHRISTOPHER_CFG.pique.timeS * 60) + 5);
+    expect(w.hazards.active.some((h) => h.sprite === 'explosao_pique')).toBe(true);
+    expect(e.aiU).toBe(-1);
+  });
+
+  it('pique-pega sozinho (sem aliados) não começa: ele solta brinquedos no lugar', () => {
+    const w = mundo(['felipe']);
+    const e = chefe(w, CHRISTOPHER);
+    expect(piqueIniciar(w, e)).toBe(false);
+    e.aiCount = 1; // próximo ataque é o 2º da fase 1: pique
+    atacar(e);
+    step(w, 2);
+    expect(e.aiU).toBe(-1);
+    expect(w.hazards.active.some((h) => h.sprite === 'brinquedo')).toBe(true);
+  });
+
+  it('esconde-esconde: acertar uma cópia só dá um susto; achar o verdadeiro o atordoa e revela', () => {
+    const w = mundo();
+    const e = chefe(w, CHRISTOPHER);
+    expect(esconderIniciar(w, e)).toBe(true);
+    step(w, 2);
+    expect(copias(w)).toHaveLength(CHRISTOPHER_CFG.esconde.copias);
+    const antes = e.hp;
+    const copia = copias(w)[0]!;
+    damageEnemy(w, copia, 500, undefined);
+    expect(copia.alive).toBe(false);
+    expect(e.hp).toBe(antes); // não é a vida do chefe
+    expect(w.hazards.active.some((h) => h.sprite === 'susto_copia')).toBe(true);
+    damageEnemy(w, e, 100, undefined);
+    expect(e.stun).toBeGreaterThan(0);
+    expect(e.hp).toBeCloseTo(antes - 100 * CHRISTOPHER_CFG.esconde.achouDanoMul, 5);
+    expect(copias(w).filter((x) => x.alive)).toHaveLength(0); // as outras somem
+  });
+
+  it('esconde-esconde: se ninguém achar, as cópias somem sozinhas', () => {
+    const w = mundo();
+    const e = chefe(w, CHRISTOPHER);
+    esconderIniciar(w, e);
+    step(w, Math.ceil(CHRISTOPHER_CFG.esconde.duracaoS * 60) + 5);
+    expect(copias(w).filter((x) => x.alive)).toHaveLength(0);
+    expect(w.messages.some((m) => m.text.includes('Não me acharam'))).toBe(true);
+  });
+
+  it('regra da arena: "o chão é lava" machuca fora dos tapetes e não machuca em cima deles', () => {
+    const w = mundo();
+    const p = w.players[0]!;
+    p.hp = p.maxHp = 100;
+    const e = chefe(w, CHRISTOPHER);
+    e.aiCd = 1e9;
+    e.x = 100; // longe do contato
+    e.aiDir = REGRA.LAVA;
+    e.aiY = CHRISTOPHER_CFG.regras.lava.duracaoS; // sem aviso
+    const h = w.hazards.acquire()!;
+    Object.assign(h, { kind: 'circle', x: p.x, y: p.y, radius: 36, delay: 0, warnTotal: 0, life: 9, damage: 0, dps: 0, slowFor: 0, expand: 0, maxRadius: 36, thickness: 8, push: 0, pushS: 0, color: COR_TAPETE, sprite: '', active: true, alive: true, hit: [] });
+    step(w, 60);
+    expect(p.hp).toBe(100);
+    p.x += 300; // sai do tapete
+    step(w, 60);
+    expect(p.hp).toBeLessThan(100);
+  });
+
+  it('regra da arena: pés pesados deixa lento e dá mais dano; tudo ao contrário inverte', () => {
+    const w = mundo();
+    const e = chefe(w, CHRISTOPHER);
+    e.aiCd = 1e9;
+    e.x = 30;
+    e.aiDir = REGRA.PESADOS;
+    e.aiY = CHRISTOPHER_CFG.regras.pesados.duracaoS;
+    step(w, 2);
+    const p = w.players[0]!;
+    expect(p.slowLeft).toBeGreaterThan(0);
+    expect(p.buffs.some((b) => b.id === 'pesados' && b.damage === CHRISTOPHER_CFG.regras.pesados.dano)).toBe(true);
+    e.aiDir = REGRA.REVERSO;
+    e.aiY = CHRISTOPHER_CFG.regras.reverso.duracaoS;
+    step(w, 2);
+    expect(p.confusedLeft).toBeGreaterThan(0);
+  });
+
+  it('a regra tem aviso antes de valer e termina sozinha', () => {
+    const w = mundo();
+    const e = chefe(w, CHRISTOPHER);
+    e.aiCd = 1e9;
+    e.x = 30;
+    iniciarRegra(w, e);
+    expect(e.aiDir).not.toBe(REGRA.NENHUMA);
+    expect(regraAtiva(e)).toBe(false); // ainda no aviso
+    const id = e.aiDir;
+    step(w, Math.ceil((CHRISTOPHER_CFG.regras.avisoS + duracaoDaRegra(id) + 1) * 60));
+    expect(e.aiDir).toBe(REGRA.NENHUMA);
+  });
+
+  it('fases pela vida restante, com fala nova na fase 2', () => {
+    const w = mundo();
+    const e = chefe(w, CHRISTOPHER);
+    e.aiCd = 1e9;
+    e.x = 30;
+    step(w, 2);
+    e.hp = e.aiX * 0.5;
+    step(w, 2);
+    expect(e.aiT2).toBe(2);
+    expect(w.messages.some((m) => /Hora do doce/.test(m.text))).toBe(true);
+    e.hp = e.aiX * 0.2;
+    step(w, 2);
+    expect(e.aiT2).toBe(3);
+  });
+
+  it('derrotar o Christopher leva as cópias junto', () => {
+    const w = mundo();
+    const e = chefe(w, CHRISTOPHER);
+    esconderIniciar(w, e);
+    step(w, 2);
+    damageEnemy(w, e, 1e9, undefined);
+    expect(e.alive).toBe(false);
+    expect(copias(w).filter((x) => x.alive)).toHaveLength(0);
   });
 });
 

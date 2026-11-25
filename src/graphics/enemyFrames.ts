@@ -8,7 +8,8 @@ import type { World } from '../engine/world';
 import type { Enemy } from '../entities/enemy';
 import { BOSS_STATE } from '../combat/bossState';
 import { estaExausto } from '../combat/salsichas';
-import { CHRISTOPHER_CFG } from '../data/bosses';
+import { estaExaustaAzulete } from '../combat/azuletes';
+import { estaExaustoChris } from '../combat/christopher';
 
 /** As 8 direções do inimigo comum, na ordem da folha (sentido horário a partir do sul). */
 export const DIRECOES = ['south', 'south-east', 'east', 'north-east', 'north', 'north-west', 'west', 'south-west'] as const;
@@ -34,6 +35,8 @@ export const INIMIGOS_EXTERNOS: Readonly<Record<string, { pasta: 'inimigos' | 'c
   toddy: { pasta: 'chefes', tipo: 'chefe' },
   bucky: { pasta: 'chefes', tipo: 'chefe' },
   juninho: { pasta: 'chefes', tipo: 'chefe' },
+  mariana: { pasta: 'chefes', tipo: 'chefe' },
+  melina: { pasta: 'chefes', tipo: 'chefe' },
   rm: { pasta: 'chefes', tipo: 'chefe' },
   christopher: { pasta: 'chefes', tipo: 'chefe' },
   ale: { pasta: 'chefes', tipo: 'chefe' },
@@ -63,7 +66,7 @@ function chefeEspecial(world: World, e: Enemy): boolean {
     case 'rm':
       return !!world.trance?.caught;
     case 'christopher':
-      return e.aiT2 > CHRISTOPHER_CFG.birraAfterS * 0.6;
+      return e.aiState === BOSS_STATE.AQUECENDO; // em birra
     case 'ale':
       return e.aiState === BOSS_STATE.PREPARANDO;
     case 'tiagow':
@@ -81,7 +84,7 @@ export function quadroDoInimigo(world: World, e: Enemy, tipo: FolhaTipo, reduzir
   if (tipo === 'direcional') return direcaoDe(e.facing);
   if (e.hitFlash > 0 && !reduzirFlash) return 'hurt';
   const passo = Math.floor(world.tick / 9 + e.uid) % 2 === 0 ? 0 : 1;
-  if (e.stun > 0 || estaExausto(e)) return 'stun';
+  if (e.stun > 0 || estaExausto(e) || estaExaustaAzulete(e) || estaExaustoChris(e)) return 'stun';
   if (chefeEspecial(world, e)) return 'special';
   if (e.aiState === BOSS_STATE.AQUECENDO || e.aiState === BOSS_STATE.PREPARANDO || e.aiState === BOSS_STATE.CARGA) return 'attack';
   if (e.aiState === BOSS_STATE.LIVRE) return passo === 0 ? 'walk0' : 'walk1';

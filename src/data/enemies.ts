@@ -7,7 +7,11 @@ import { BESTIARY, type BestiaryBehaviorId, type BestiaryDef, type BestiaryId } 
 export type BossEnemyId = 'salsichas' | 'juninho' | 'rm' | 'christopher' | 'ale' | 'tiagow' | 'tempo';
 /** Os outros três cachorros das Salsichas: corpos que dividem a vida do Geraldo (`salsichas`). */
 export type SalsichaFollowerId = 'monet' | 'toddy' | 'bucky';
-export type EnemyTypeId = BestiaryId | BossEnemyId | SalsichaFollowerId;
+/** As Azuletes do Juninho: dividem a vida dele, como os corpos das Salsichas. */
+export type AzuleteId = 'mariana' | 'melina';
+/** Cópia do Christopher no esconde-esconde: não é chefe e não divide vida; acertá-la só dá um susto. */
+export type CopiaId = 'christopherCopia';
+export type EnemyTypeId = BestiaryId | BossEnemyId | SalsichaFollowerId | AzuleteId | CopiaId;
 
 /** Comportamento do inimigo (ver combat/enemyAI.ts e combat/bosses.ts). */
 export type BehaviorId = 'chase' | BestiaryBehaviorId | 'boss';
@@ -88,6 +92,11 @@ const corpo = (id: SalsichaFollowerId, name: string, color: string): EnemyDef =>
 /** Monet, Toddy e Bucky: seguem o Geraldo e sofrem o dano pela mesma barra de vida. */
 export const SALSICHAS_CORPOS: readonly EnemyDef[] = [corpo('monet', 'Monet', '#d9a15a'), corpo('toddy', 'Toddy', '#7a3f10'), corpo('bucky', 'Bucky', '#e6c9a0')];
 export const JUNINHO = chefe('juninho', 'Juninho e as Azuletes', 2200, 16, 22, 60, '#3a6fb5');
+const azulete = (id: AzuleteId, name: string, speed: number, color: string): EnemyDef => ({ ...chefe('juninho', name, 1, speed, 11, 0, color), id, damage: 12 });
+/** Mariana (hiperativa) e Melina (sarcástica): seguem o Juninho e dividem a vida dele. */
+export const AZULETES: readonly EnemyDef[] = [azulete('mariana', 'Mariana', 38, '#2f7bff'), azulete('melina', 'Melina', 30, '#7fb6ff')];
+/** A cópia do Christopher: mesmo corpo, mas não é chefe (não tem barra de vida nem drops) e não machuca. */
+export const CHRISTOPHER_COPIA: EnemyDef = { ...chefe('christopher', 'Christopher', 1, 0, 26, 0, '#cfe8ff'), id: 'christopherCopia', boss: false, damage: 0 };
 export const RM = chefe('rm', 'RM (Kim Namjoon)', 2800, 20, 22, 80, '#9a7fd1');
 export const CHRISTOPHER = chefe('christopher', 'Christopher', 3500, 22, 26, 90, '#cfe8ff');
 export const ALE = chefe('ale', 'Alê', 4200, 18, 22, 100, '#d9a441');

@@ -65,7 +65,7 @@ export function multiplicadorDeCritico(s: MelissaState): number {
 /** Dispara a Reação Exagerada: onda que atordoa e causa dano ao redor. */
 function reacaoExagerada(world: World, p: Player, s: MelissaState): void {
   damageArea(world, p.x, p.y - 8, REACAO_RADIUS, REACAO_DAMAGE * p.damageMul, p, REACAO_STUN_S);
-  spawnEffect(world, { kind: 'ring', x: p.x, y: p.y - 8, radius: REACAO_RADIUS, life: 0.35, color: '#ff4d8d' });
+  spawnEffect(world, { kind: 'ring', x: p.x, y: p.y - 8, radius: REACAO_RADIUS, life: 0.4, color: '#ff4d8d', sprite: 'reacao_exagerada' });
   spawnEffect(world, { kind: 'text', x: p.x, y: p.y - 30, life: 1, color: '#ff9ec4', text: 'Reação Exagerada!' });
   if (s.mods.protagonista) {
     s.protagonistaLeft = PROTAGONISTA_DURATION_S;
@@ -96,7 +96,7 @@ export function acertarInimigo(world: World, p: Player, s: MelissaState, e: Enem
     // Show Inesperado: o primeiro Holofote de cada inimigo explode em luz.
     if (s.mods.showInesperado && !e.spotUsed) {
       damageArea(world, e.x, e.y, SHOW_RADIUS, SHOW_DAMAGE * p.damageMul, p);
-      spawnEffect(world, { kind: 'ring', x: e.x, y: e.y, radius: SHOW_RADIUS, life: 0.3, color: '#fff3a0' });
+      spawnEffect(world, { kind: 'ring', x: e.x, y: e.y, radius: SHOW_RADIUS, life: 0.35, color: '#fff3a0', sprite: 'show_inesperado' });
     }
     e.spotUsed = true;
     spawnEffect(world, { kind: 'text', x: e.x, y: e.y - 14, life: 0.6, color: '#7ad7ff', text: 'CRÍTICO' });
@@ -195,7 +195,7 @@ function iniciarInvestida(world: World, p: Player, s: MelissaState, input: Playe
       ally.forcedMove = { vx: dx * speed, vy: dy * speed, left: INVESTIDA_DURATION_S };
       for (const who of [p, ally]) {
         damageArea(world, who.x, who.y - 8, ENTRADA_AREA, ENTRADA_DAMAGE * p.damageMul, p);
-        spawnEffect(world, { kind: 'ring', x: who.x, y: who.y - 8, radius: ENTRADA_AREA, life: 0.3, color: '#7ad7ff' });
+        spawnEffect(world, { kind: 'ring', x: who.x, y: who.y - 8, radius: ENTRADA_AREA, life: 0.35, color: '#7ad7ff', sprite: 'entrada_dupla' });
       }
     }
   }
@@ -321,8 +321,9 @@ export function updateMelissa(world: World, p: Player, input: PlayerInput): void
         y: p.y - 8,
         x2: p.x + Math.cos(angle) * FANCAM_RANGE,
         y2: p.y - 8 + Math.sin(angle) * FANCAM_RANGE,
-        life: 0.2,
+        life: 0.3,
         color: '#ffffff',
+        sprite: 'fancam',
       });
       s.fancamCd = FANCAM_COOLDOWN_S;
     }

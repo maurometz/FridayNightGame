@@ -1,6 +1,6 @@
 import type { Poolable } from '../engine/pool';
 
-export type HostileKind = 'notificacao' | 'pedra' | 'pipoca' | 'formulario' | 'espinho' | 'agua' | 'latido' | 'tinta';
+export type HostileKind = 'notificacao' | 'pedra' | 'pipoca' | 'formulario' | 'espinho' | 'agua' | 'latido' | 'tinta' | 'ironia' | 'email';
 
 /** Projétil inimigo. Machuca jogadores e pode ser bloqueado pelo arco da Thaisa (Fortaleza Acústica). */
 export interface Hostile extends Poolable {

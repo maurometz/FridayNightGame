@@ -85,6 +85,10 @@ export function spawnEnemy(world: World, def: EnemyDef, x: number, y: number): b
   e.resist = 0;
   e.aiT2 = 0;
   e.aiW = 0;
+  e.aiU = -1;
+  e.aiV = 0;
+  e.aiS = 0;
+  e.aiR = 0;
   // Nasce olhando para o jogador mais próximo.
   let best: Player | null = null;
   let bestD2 = Infinity;

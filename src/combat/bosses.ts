@@ -11,7 +11,7 @@ import {
   TEMPO_CFG,
   TIAGOW_CFG,
 } from '../data/bosses';
-import { COMUNS, SALSICHAS_CORPOS, type EnemyDef } from '../data/enemies';
+import { AZULETES, COMUNS, SALSICHAS_CORPOS, type EnemyDef } from '../data/enemies';
 import type { Enemy } from '../entities/enemy';
 import { createPlayer, type Player } from '../entities/player';
 import { clamp, wrapAngle } from '../engine/math';
@@ -23,6 +23,22 @@ import { pushMessage } from './messages';
 import { spawnEnemy } from './spawner';
 import { BOSS_STATE } from './bossState';
 import { atualizarSalsichas } from './salsichas';
+import { atualizarAzuletes, COR_CRONOGRAMA, faseDoJuninho, horaExtra } from './azuletes';
+import {
+  atualizarAtencao,
+  atualizarBirra,
+  atualizarEsconde,
+  atualizarPique,
+  atualizarRegra,
+  brinquedos,
+  esconderIniciar,
+  estaAnimado,
+  faseDoChristopher,
+  iniciarBirra,
+  iniciarRegra,
+  piqueIniciar,
+  REGRA,
+} from './christopher';
 
 // Os chefes da campanha (GDD A.7, LORE seção 10). Cada ataque é telegrafado com pelo menos 1 s de
 // antecedência (data/bosses.ts): brilho no corpo, aviso no chão ou pausa antes de disparar.
@@ -66,6 +82,19 @@ export function spawnBoss(world: World, def: EnemyDef): Enemy | null {
       f.aiX = e.aiX;
     });
   }
+  if (def.id === 'christopher') e.aiW = CHRISTOPHER_CFG.atencao.inicio; // começa com atenção média
+  if (def.id === 'juninho') {
+    // Mariana e Melina: dois corpos que seguem o Juninho e dividem a vida dele.
+    AZULETES.forEach((azulete, i) => {
+      if (!spawnEnemy(world, azulete, x + (i === 0 ? -48 : 48), y + 18)) return;
+      const f = world.enemies.active[world.enemies.active.length - 1]!;
+      f.leader = e.uid;
+      f.hp = e.hp;
+      f.aiX = e.aiX;
+      f.aiCd = i === 0 ? 4 : 2;
+      f.aiT2 = i === 1 ? 3 : 0; // Melina só bota o primeiro escudo depois de alguns segundos
+    });
+  }
   pushMessage(world, '', `Aviso de chefe: ${def.name}`, 4);
   return e;
 }
@@ -106,15 +135,8 @@ function perseguir(e: Enemy, alvo: Player, vel: number): void {
   e.y += Math.sin(e.facing) * vel * STEP_S;
 }
 
-/** Ondas circulares que saem do chefe. */
-function ondas(world: World, e: Enemy, c: { count: number; gap: number; speed: number; maxRadius: number; thickness: number; damage: number }, cor: string): void {
-  for (let i = 0; i < c.count; i++) {
-    spawnHazard(world, { kind: 'ring', x: e.x, y: e.y, radius: 0, delay: i * c.gap, expand: c.speed, maxRadius: c.maxRadius, thickness: c.thickness, damage: c.damage, color: cor });
-  }
-}
-
 /** Leque de projéteis na direção do alvo. */
-function leque(world: World, e: Enemy, alvo: Player, kind: 'pipoca' | 'pedra' | 'notificacao' | 'formulario' | 'latido' | 'tinta', count: number, spreadDeg: number, speed: number, damage: number): void {
+function leque(world: World, e: Enemy, alvo: Player, kind: 'pipoca' | 'pedra' | 'notificacao' | 'formulario' | 'latido' | 'tinta' | 'email', count: number, spreadDeg: number, speed: number, damage: number): void {
   const base = Math.atan2(alvo.y - e.y, alvo.x - e.x);
   const spread = (spreadDeg * Math.PI) / 180;
   for (let i = 0; i < count; i++) {
@@ -154,31 +176,54 @@ function descansando(e: Enemy, cooldown: number): boolean {
 
 function juninho(world: World, e: Enemy, alvo: Player, vel: number, frac: number): void {
   const c = JUNINHO_CFG;
-  if (descansando(e, frac < c.furiaBelow ? c.cooldown * 0.8 : c.cooldown)) return;
+  const fase = faseDoJuninho(frac);
+  atualizarAzuletes(world, e, fase);
+  if (descansando(e, c.cooldownFase[fase - 1]!)) return;
   if (!prontoParaAtacar(e, alvo, vel)) return;
   e.aiCount++;
   const n = e.aiCount;
-  if (n % c.azuletesEvery === 0) {
-    pushMessage(world, 'Juninho', 'Azuletes! Executem o cronograma!', 3);
-    for (let i = 0; i < 2; i++) {
-      spawnEnemy(world, comum('cafe'), e.x - 20 + i * 40, e.y + 16); // Mariana, hiperativa
+  switch (n % 4) {
+    case 1: {
+      // Drones: lasers nas posições dos jogadores (aviso de 1,4 s). Na fase 3, em dobro (o segundo ao lado).
+      for (const p of vivos(world)) {
+        spawnHazard(world, { x: p.x, y: p.y, radius: c.lasers.radius, delay: c.lasers.warnS, damage: c.lasers.damage, color: '#4db3ff', sprite: 'laser_drone' });
+        if (fase === 3) spawnHazard(world, { x: p.x + 34, y: p.y - 18, radius: c.lasers.radius, delay: c.lasers.warnS + 0.3, damage: c.lasers.damage, color: '#4db3ff', sprite: 'laser_drone' });
+      }
+      break;
     }
-    for (let i = 0; i < 2; i++) {
-      spawnEnemy(world, comum('canhoto'), e.x - 30 + i * 60, e.y - 16); // Melina, sarcástica
-    }
-  } else if (n % 2 === 0) {
-    // Zonas de cronograma: lentidão no chão.
-    for (let i = 0; i < c.cronograma.count; i++) {
-      const p = pertoDeJogador(world, c.cronograma.scatter);
-      spawnHazard(world, { x: p.x, y: p.y, radius: c.cronograma.radius, delay: c.cronograma.warnS, life: c.cronograma.lifeS, damage: c.cronograma.impact, slowFor: c.cronograma.slowFor, color: '#6ea8ff' });
-    }
-  } else {
-    // Drones: lasers nas posições dos jogadores (aviso de 1,4 s).
-    for (const p of vivos(world)) {
-      spawnHazard(world, { x: p.x, y: p.y, radius: c.lasers.radius, delay: c.lasers.warnS, damage: c.lasers.damage, color: '#4db3ff' });
-    }
+    case 2:
+      zonasDeCronograma(world);
+      break;
+    case 3:
+      // Notificação de e-mail: leque de projéteis curtos.
+      leque(world, e, alvo, 'email', c.email.count, c.email.spreadDeg, c.email.speed, c.email.damage);
+      break;
+    default:
+      // Reunião obrigatória: puxa todo mundo para perto do Juninho. Na fase 3 vem com "hora extra" e cronograma.
+      reuniaoObrigatoria(world, e);
+      if (fase === 3) {
+        zonasDeCronograma(world);
+        horaExtra(world, e);
+      }
   }
   terminarAtaque(e, 1.4);
+}
+
+/** Zonas de cronograma: lentidão no chão. Quando o prazo acaba, cada zona explode. */
+function zonasDeCronograma(world: World): void {
+  const c = JUNINHO_CFG.cronograma;
+  for (let i = 0; i < c.count; i++) {
+    const p = pertoDeJogador(world, c.scatter);
+    spawnHazard(world, { x: p.x, y: p.y, radius: c.radius, delay: c.warnS, life: c.lifeS, damage: c.impact, slowFor: c.slowFor, color: COR_CRONOGRAMA, sprite: 'cronograma' });
+    spawnHazard(world, { x: p.x, y: p.y, radius: c.radius, delay: c.warnS + c.lifeS, damage: c.prazoDamage, color: '#ff6a5a', sprite: 'prazo_explosao' });
+  }
+}
+
+/** Reunião obrigatória: círculo grande que puxa para o centro (no Juninho) e deixa lento. */
+function reuniaoObrigatoria(world: World, e: Enemy): void {
+  const r = JUNINHO_CFG.reuniao;
+  pushMessage(world, 'Juninho', 'Reunião obrigatória. Todo mundo aqui.', 2.5);
+  spawnHazard(world, { x: e.x, y: e.y, radius: r.radius, delay: r.warnS, damage: r.damage, push: r.pull, pushS: r.pullS, slowFor: r.slowFor, color: '#6ea8ff', sprite: 'reuniao' });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -445,32 +490,43 @@ function rm(world: World, e: Enemy, alvo: Player, vel: number): void {
 // ---------------------------------------------------------------------------------------------
 // FASE 5: Christopher
 
-function christopher(world: World, e: Enemy, alvo: Player, vel: number): void {
+/** Rodízio de ataques do Christopher por fase. */
+const ROTACAO_CHRIS: readonly (readonly ('brinquedos' | 'pique' | 'esconde' | 'birra')[])[] = [
+  ['brinquedos', 'pique'],
+  ['pique', 'brinquedos', 'esconde'],
+  ['esconde', 'pique', 'birra', 'brinquedos'],
+];
+
+function christopher(world: World, e: Enemy, alvo: Player, vel: number, frac: number): void {
   const c = CHRISTOPHER_CFG;
-  // Atenção: se ninguém está perto por muito tempo, entra em birra.
-  const perto = world.players.some((p) => p.hp > 0 && Math.hypot(p.x - e.x, p.y - e.y) < c.atencaoPx);
-  e.aiT2 = perto ? Math.max(0, e.aiT2 - STEP_S * 2) : e.aiT2 + STEP_S;
-  if (e.aiT2 >= c.birraAfterS && e.aiState === BOSS_STATE.LIVRE) {
-    e.aiT2 = 0;
-    pushMessage(world, 'Christopher', 'NINGUÉM ME OLHA!', 2.5);
-    spawnHazard(world, { x: e.x, y: e.y, radius: 30, delay: c.birra.warnS, damage: 0, color: '#ff8fb0' });
-    ondas(world, e, { ...c.birra, count: c.birra.rings }, '#ff8fb0');
-    terminarAtaque(e, c.birra.warnS + 0.6);
+  const fase = faseDoChristopher(frac);
+  if (e.aiT2 !== fase) {
+    if (e.aiT2 !== 0) pushMessage(world, 'Christopher', fase === 2 ? 'Hora do doce! Quero mais! Quero mais!' : 'CHEGA! EU QUERO TUDO!', 3);
+    e.aiT2 = fase;
+  }
+  // Efeitos que rodam em paralelo aos ataques: regra da arena e marca do pique-pega.
+  atualizarRegra(world, e);
+  atualizarPique(world, e);
+  if (atualizarEsconde(world, e)) return;
+  if (atualizarBirra(world, e)) return;
+  atualizarAtencao(world, e);
+  if (e.aiW <= 0 && (e.aiState === BOSS_STATE.LIVRE || e.aiState === BOSS_STATE.DESCANSANDO)) {
+    iniciarBirra(world, e, fase);
     return;
   }
-  if (descansando(e, c.cooldown)) return;
-  if (!prontoParaAtacar(e, alvo, vel)) return;
+  const cooldown = c.cooldownFase[fase - 1]! * (estaAnimado(e) ? c.atencao.animadoCooldownMul : 1);
+  if (descansando(e, cooldown)) return;
+  if (!prontoParaAtacar(e, alvo, vel * (fase >= 2 ? c.doceVelMul : 1))) return;
   e.aiCount++;
-  if (e.aiCount % c.regraEvery === 0) {
-    // Regra nova da arena: os controles se invertem por um instante.
-    pushMessage(world, 'Christopher', 'Agora é assim! Mudei as regras!', 2.5);
-    for (const p of world.players) if (p.hp > 0) p.confusedLeft = Math.max(p.confusedLeft, c.regraConfusaoS);
-  } else {
-    for (let i = 0; i < c.meteoros.count; i++) {
-      const p = pertoDeJogador(world, c.meteoros.scatter);
-      spawnHazard(world, { x: p.x, y: p.y, radius: c.meteoros.radius, delay: c.meteoros.warnS, damage: c.meteoros.damage, color: '#bfe6ff' });
-    }
-  }
+  const lista = ROTACAO_CHRIS[fase - 1]!;
+  let ataque = lista[(e.aiCount - 1) % lista.length]!;
+  // O pique-pega precisa de aliados e não cabe com outra marca ou com o esconde-esconde: cai para a chuva de brinquedos.
+  if (ataque === 'pique' && (e.aiU >= 0 || !piqueIniciar(world, e))) ataque = 'brinquedos';
+  if (ataque === 'esconde' && (e.aiU >= 0 || !esconderIniciar(world, e))) ataque = 'brinquedos';
+  if (ataque === 'brinquedos') brinquedos(world, fase);
+  else if (ataque === 'birra') iniciarBirra(world, e, fase);
+  if (e.aiDir === REGRA.NENHUMA && e.aiCount % c.regras.every[fase - 1]! === 0) iniciarRegra(world, e);
+  if (ataque === 'esconde' || ataque === 'birra') return; // esses cuidam do próprio estado
   terminarAtaque(e, 1.3);
 }
 
@@ -647,7 +703,7 @@ export function updateBoss(world: World, e: Enemy, alvo: Player, vel: number): v
       rm(world, e, alvoReal, vel);
       break;
     case 'christopher':
-      christopher(world, e, alvoReal, vel);
+      christopher(world, e, alvoReal, vel, frac);
       break;
     case 'ale':
       ale(world, e, alvoReal, vel);

@@ -197,7 +197,10 @@ export function updateProjectiles(world: World): void {
       if (dx * dx + dy * dy > reach * reach) continue;
 
       const owner = world.players[pr.ownerSlot];
-      if (pr.stun > 0) e.stun = Math.max(e.stun, pr.stun);
+      if (pr.stun > 0) {
+        e.stun = Math.max(e.stun, pr.stun);
+        spawnEffect(world, { kind: 'ring', x: e.x, y: e.y - 10, radius: 16, life: 0.4, color: '#ffe36b', sprite: 'feedback' });
+      }
       if (pr.knock > 0) {
         const speed = Math.hypot(pr.vx, pr.vy) || 1;
         knockEnemy(e, pr.vx / speed, pr.vy / speed, pr.knock, pr.ownerSlot);
@@ -227,7 +230,7 @@ export function updateProjectiles(world: World): void {
           // Explosão a cada N saltos (Mestre da Nota Longa).
           if (pr.explodeEvery > 0 && pr.jumpsDone % pr.explodeEvery === 0) {
             damageArea(world, e.x, e.y, pr.explodeRadius, pr.damage * pr.explodeMul, owner);
-            spawnEffect(world, { kind: 'ring', x: e.x, y: e.y, radius: pr.explodeRadius, life: 0.3, color: '#7ad7ff' });
+            spawnEffect(world, { kind: 'ring', x: e.x, y: e.y, radius: pr.explodeRadius, life: 0.35, color: '#7ad7ff', sprite: 'mestre_explosao' });
           }
 
           // Divisão em duas (Referência Cruzada): uma segunda runa vai para outro alvo, uma vez.

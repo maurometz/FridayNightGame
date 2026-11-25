@@ -168,7 +168,7 @@ export function fireInstrument(world: World, p: Player, s: FelipeState, id: Inst
         addBuff(a, { id: `flauta${p.slot}`, left: FLAUTA_BUFF_S, damage: FLAUTA_DAMAGE_BUFF });
       }
       damageArea(world, p.x, oy, area, dmg, p);
-      spawnEffect(world, { kind: 'ring', x: p.x, y: oy, radius: area, life: 0.4, color: '#9be7a8' });
+      spawnEffect(world, { kind: 'ring', x: p.x, y: oy, radius: area, life: 0.4, color: '#9be7a8', sprite: 'flauta_cura' });
       spawnEffect(world, { kind: 'text', x: p.x, y: p.y - 30, life: 0.7, color: '#c9f5d2', text: '♪' });
       break;
     }
@@ -217,6 +217,8 @@ function triggerAnomaly(world: World, p: Player, s: FelipeState): void {
   const ox = p.x;
   const oy = p.y - CHEST;
   spawnEffect(world, { kind: 'text', x: p.x, y: p.y - 30, life: 1.2, color: '#ffffff', text: a.name });
+  // Lâmpada da Espiral de Ideias Absurdas sobre a cabeça.
+  spawnEffect(world, { kind: 'ring', x: p.x, y: p.y - 52, radius: 12, life: 0.9, color: '#ffe9a8', sprite: 'espiral' });
 
   switch (a.id) {
     case 'pato': {
@@ -242,7 +244,7 @@ function triggerAnomaly(world: World, p: Player, s: FelipeState): void {
       const tx = target ? target.x : ox + (p.facing === 1 ? 60 : -60);
       const ty = target ? target.y : oy;
       damageArea(world, tx, ty, prm.area, prm.damage * p.damageMul, p);
-      spawnEffect(world, { kind: 'ring', x: tx, y: ty, radius: prm.area, life: 0.3, color: '#ff6fb5' });
+      spawnEffect(world, { kind: 'ring', x: tx, y: ty, radius: prm.area, life: 0.4, color: '#ff6fb5', sprite: 'confete' });
       break;
     }
     case 'super': {
@@ -252,6 +254,7 @@ function triggerAnomaly(world: World, p: Player, s: FelipeState): void {
     }
     case 'chuva': {
       const prm = ANOMALY_PARAMS.chuva;
+      spawnEffect(world, { kind: 'ring', x: p.x, y: p.y - 40, radius: 20, life: 1.1, color: '#cfd8dc', sprite: 'chuva_kazoos' });
       for (let i = 0; i < prm.count; i++) {
         spawnProjectile(world, {
           kind: 'kazoo',

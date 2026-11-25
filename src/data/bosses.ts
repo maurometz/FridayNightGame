@@ -65,14 +65,55 @@ export const SALSICHAS_CFG = {
 
 export const JUNINHO_CFG = {
   cooldown: 3.6,
-  /** Drones: lasers telegrafados nas posições dos jogadores. */
+  /** Recarga entre ataques do Juninho em cada fase da luta (1 Expediente, 2 Reestruturação, 3 Prazo final). */
+  cooldownFase: [3.6, 3.1, 2.4],
+  /** Fases pela vida restante: abaixo de `reestruturacao` entra a fase 2; abaixo de `prazo`, a fase 3. */
+  fases: { reestruturacao: 0.6, prazo: 0.3 },
+  /** Drones: lasers telegrafados nas posições dos jogadores (na fase 3 vêm em dobro). */
   lasers: { warnS: 1.4, radius: 20, damage: 14 },
-  /** Zonas de cronograma: lentidão no chão. */
-  cronograma: { count: 3, warnS: 1.3, lifeS: 6, radius: 30, slowFor: 3, impact: 4, scatter: 85 },
-  /** A cada N ataques as Azuletes entram em campo (Mariana: Café Hiperativo; Melina: Canhotos). */
-  azuletesEvery: 3,
-  /** Abaixo disto, o escritório fica mais agressivo. */
-  furiaBelow: 0.5,
+  /** Zonas de cronograma: lentidão no chão; quando o prazo acaba elas explodem. */
+  cronograma: { count: 3, warnS: 1.3, lifeS: 6, radius: 30, slowFor: 3, impact: 4, scatter: 85, prazoWarnS: 0.7, prazoDamage: 16 },
+  /** Notificação de e-mail: leque de projéteis curtos. */
+  email: { count: 5, spreadDeg: 70, speed: 95, damage: 6 },
+  /** Reunião obrigatória: puxa todos para o centro e deixa lento. */
+  reuniao: { warnS: 1.6, radius: 105, pull: -260, pullS: 0.5, damage: 8, slowFor: 2.5 },
+  /** Quando o escudo da Melina quebra, o grupo todo cambaleia por este tempo (vulnerável). */
+  quebraStunS: 2.5,
+  /** Mariana, a Azulete hiperativa: investidas em linha reta com rastro de tinta; cansa depois de algumas. */
+  mariana: {
+    speed: 38,
+    dashSpeed: 250,
+    dashLenPx: 140,
+    warnS: 0.9,
+    gapS: 0.45,
+    /** Investidas seguidas antes de ficar sem fôlego, por fase. */
+    dashes: [3, 3, 4],
+    exaustoS: [3.5, 3, 2.5],
+    cooldownS: [3, 2.6, 2],
+    /** Rastro de tinta: poças a cada `stepPx`, com dano no impacto e dano contínuo + lentidão depois. */
+    trail: { radius: 14, stepPx: 28, lifeS: 4, impact: 4, dps: 4, slowFor: 1.5 },
+    /** Dano extra que ela leva sem fôlego (e, se tropeçar numa zona de cronograma, ela cansa na hora). */
+    exaustaDanoMul: 1.5,
+  },
+  /** Melina, a Azulete sarcástica: escudo no Juninho e ironias que dão debuff. */
+  melina: {
+    speed: 30,
+    distJuninho: 60,
+    /** Vida do escudo (fração da vida máxima do chefe) por fase, duração e recarga (conta quando não há escudo). */
+    escudoFrac: [0.05, 0.06, 0.07],
+    escudoS: 7,
+    escudoWarnS: 1,
+    escudoCdS: [11, 10, 8],
+    /** Acertar a Melina com o escudo ativo causa dano extra ao escudo (múltiplo do dano). */
+    escudoBonusNaMelina: 1,
+    ironiaEveryS: [4.5, 3.5, 2.8],
+    ironiaCount: [1, 3, 3],
+    ironiaSpread: 30,
+    ironiaSpeed: 85,
+    ironiaDamage: 4,
+    /** Debuff da ironia: dano e velocidade de ataque do jogador atingido, por `debuffS` segundos. */
+    debuff: { s: 5, damage: 0.8, attack: 0.85 },
+  },
 };
 
 export const RM_CFG = {
@@ -101,14 +142,32 @@ export const RM_CFG = {
 
 export const CHRISTOPHER_CFG = {
   cooldown: 3.2,
-  /** Se nenhum jogador chegar a esta distância por tanto tempo, entra em birra. */
-  atencaoPx: 130,
-  birraAfterS: 5,
-  birra: { rings: 3, gap: 0.35, speed: 110, maxRadius: 240, thickness: 12, damage: 16, warnS: 1.2 },
-  meteoros: { count: 4, warnS: 1.2, radius: 24, damage: 13, scatter: 90 },
-  /** Mudança caótica de regra (inverte controles) a cada N ataques. */
-  regraEvery: 4,
-  regraConfusaoS: 3,
+  /** Recarga entre ataques por fase (1 Brincadeira, 2 Hora do doce, 3 Birra total). */
+  cooldownFase: [3.2, 2.7, 2.2],
+  /** Fases pela vida restante: abaixo de `doce` entra a fase 2; abaixo de `birraTotal`, a fase 3. */
+  fases: { doce: 0.65, birraTotal: 0.3 },
+  /** Na fase 2 ele anda mais rápido (se entope de doce da Expointer). */
+  doceVelMul: 1.3,
+  /**
+   * Atenção (0 a 100): sobe se alguém está perto, desce se ninguém está. Zerada = birra. Muito alta (animado) = ele ataca mais depressa.
+   */
+  atencao: { max: 100, inicio: 60, perto: 130, sobePorS: 4, descePorS: 8, animadoAcima: 90, animadoCooldownMul: 0.8, aposBirra: 50, ganhoDivertido: 10 },
+  /** Birra: anéis com vãos para atravessar; depois dela ele chora exausto (vulnerável). */
+  birra: { rings: [3, 3, 4], gap: 0.5, speed: 110, maxRadius: 240, thickness: 12, damage: 16, warnS: 1.2, vaoHalf: [0.6, 0.55, 0.45], exaustoS: 4, exaustoDanoMul: 1.4 },
+  /** Chuva de brinquedos: bolas que rolam por uma linha, estourando em sequência (cada passo avisa antes). */
+  brinquedos: { bolas: 3, passos: 8, passoPx: 28, radius: 16, warnS: 1, passoDelayS: 0.16, damage: 10, distInicio: 110 },
+  /** Pique-pega: a marca precisa passar para um aliado por toque, senão explode em quem a carrega. */
+  pique: { timeS: 6, passaPx: 22, passaCdS: 1.2, explosao: { radius: 42, warnS: 0.5, damage: 18 } },
+  /** Esconde-esconde: 3 cópias e o Christopher de verdade em carrossel. Acertar uma cópia dá um susto; acertar o verdadeiro o atordoa. */
+  esconde: { copias: 3, duracaoS: 9, raio: 110, omega: 0.7, hihiEveryS: 2.5, sustoRadius: 16, sustoDamage: 8, achouStunS: 3, achouDanoMul: 1.5 },
+  /** Regras da arena: uma por vez, com aviso na tela. `every` = a cada quantos ataques uma regra nova começa, por fase. */
+  regras: {
+    every: [4, 3, 3],
+    avisoS: 1,
+    lava: { duracaoS: 9, dps: 7, tapetes: 2, raio: 36, scatter: 100 },
+    pesados: { duracaoS: 8, dano: 1.2 },
+    reverso: { duracaoS: 5 },
+  },
 };
 
 export const ALE_CFG = {
@@ -231,15 +290,19 @@ export const BOSS_ROSTER: readonly BossDef[] = [
     fase: 3,
     concept: 'CEO rabugento (não é velho, só ranzinza), acima do peso e mestre em tecnologia, com duas capangas pintadas de azul.',
     members: [
-      { id: 'juninho', name: 'Juninho', role: 'CEO: drones, lasers e zonas de cronograma' },
-      { id: 'mariana', name: 'Mariana', role: 'Azulete hiperativa: alta velocidade e rastros de tinta' },
-      { id: 'melina', name: 'Melina', role: 'Azulete sarcástica: escudos e debuffs' },
+      { id: 'juninho', name: 'Juninho', role: 'CEO: drones, lasers, zonas de cronograma, e-mails e reunião obrigatória' },
+      { id: 'mariana', name: 'Mariana', role: 'Azulete hiperativa: investidas com rastro de tinta; cansa depois de algumas' },
+      { id: 'melina', name: 'Melina', role: 'Azulete sarcástica: escudo no Juninho e ironias que dão debuff' },
     ],
     mechanics: [
-      { name: 'Drones', description: 'Juninho lança drones que disparam lasers telegrafados.' },
-      { name: 'Zonas de cronograma', description: 'Áreas de burocracia no chão: quem fica dentro leva lentidão.' },
-      { name: 'Rastro de tinta', description: 'Mariana corre em alta velocidade e deixa tinta azul com dano contínuo.' },
-      { name: 'Escudo sarcástico', description: 'Melina protege o Juninho com escudos e aplica debuffs com ironia.' },
+      { name: 'Drones', description: 'Dois drones miram lasers telegrafados nos jogadores (em dobro na fase 3).' },
+      { name: 'Zonas de cronograma', description: 'Áreas de burocracia no chão deixam lento; quando o prazo acaba, explodem. A Mariana tropeça nelas.' },
+      { name: 'Notificação de e-mail', description: 'Leque de projéteis curtos.' },
+      { name: 'Reunião obrigatória', description: 'Um círculo grande puxa todo mundo para perto do Juninho e deixa lento.' },
+      { name: 'Rastro de tinta', description: 'Mariana investe em linha reta e deixa poças de tinta azul; depois de 3 ou 4 investidas ela fica sem fôlego e leva +50% de dano.' },
+      { name: 'Escudo sarcástico', description: 'Melina bota um escudo no Juninho; quebrá-lo (ou acertar a Melina, que o desgasta em dobro) atordoa o grupo.' },
+      { name: 'Ironia', description: 'Projéteis lentos da Melina que dão debuff de dano e velocidade de ataque por 5 s.' },
+      { name: 'Fases', description: 'Expediente (100 a 60%), Reestruturação (60 a 30%) e Prazo final (abaixo de 30%, com "hora extra").' },
     ],
     introLine: 'Isso aqui não estava no cronograma.',
     hp: 1500,
@@ -263,12 +326,16 @@ export const BOSS_ROSTER: readonly BossDef[] = [
     fase: 5,
     concept: 'Um conceito de destruição com mentalidade infantil e forma etérea. Faz sempre o que quer, não escuta ninguém e adora atenção.',
     mechanics: [
-      { name: 'Birra', description: 'Se for ignorado ou ficar longe, entra em birra: os ataques aumentam até alguém dar atenção.' },
-      { name: 'Regras da arena', description: 'Muda as regras da arena de forma caótica (direção, gravidade, tamanho).' },
-      { name: 'Quero atenção', description: 'Os personagens podem dar atenção a ele para acalmá-lo por um tempo.' },
+      { name: 'Atenção', description: 'Uma barra de atenção: sobe com alguém por perto e desce com todo mundo longe. Muito alta, ele ataca mais depressa; zerada, entra em birra.' },
+      { name: 'Birra', description: 'Anéis de choque com vãos para atravessar. Depois ele chora exausto: não ataca e leva +40% de dano.' },
+      { name: 'Pique-pega', description: 'Marca um jogador: a marca passa por toque para um aliado em 6 s ou explode em quem a carrega.' },
+      { name: 'Esconde-esconde', description: 'Três cópias e o verdadeiro giram em carrossel. Acertar uma cópia dá um susto; achar o verdadeiro o atordoa.' },
+      { name: 'Chuva de brinquedos', description: 'Bolas rolam pelo chão e estouram em sequência (cada passo avisa antes).' },
+      { name: 'Regras da arena', description: 'O chão é lava (só os tapetes salvam), pés pesados (lento, mas com mais dano) e tudo ao contrário (controles invertidos).' },
+      { name: 'Fases', description: 'Brincadeira (100 a 65%), Hora do doce (65 a 30%, mais rápido) e Birra total (abaixo de 30%).' },
     ],
     introLine: 'EU QUERO! EU QUERO! ME OLHA!',
-    hp: 2100,
+    hp: 3500,
   },
   {
     id: 'ale',

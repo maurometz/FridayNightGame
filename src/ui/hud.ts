@@ -4,6 +4,8 @@
 import { VEHICLES } from '../data/vehicles';
 import { REVIVE_TIME_S } from '../data/revive';
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH, MAX_LEVEL } from '../data/balance';
+import { CHRISTOPHER_CFG } from '../data/bosses';
+import { duracaoDaRegra, NOME_REGRA } from '../combat/christopher';
 import { CHARACTERS } from '../data/characters';
 import { cartasDoDispositivo, type DeviceId, type KeyMap } from '../data/controls';
 import { keyLabel } from '../game/settings';
@@ -452,6 +454,24 @@ function drawBossBar(ctx: Ctx, world: World): void {
   usarFonte(ctx, FONT_UI, 'center');
   textoContornado(ctx, chefe.def.name.toUpperCase(), LOGICAL_WIDTH / 2, 24, PAL.neon1);
   medidor(ctx, x, 36, w, 7, frac, PAL.neon1, COLOR.hpTrack, PAL.accent);
+  // Christopher: barra de atenção (sobe com alguém perto) e a regra da arena em vigor.
+  if (chefe.def.id === 'christopher') {
+    const animado = chefe.aiW >= CHRISTOPHER_CFG.atencao.animadoAcima;
+    medidor(ctx, x, 45, w, 4, chefe.aiW / CHRISTOPHER_CFG.atencao.max, animado ? '#ffd166' : '#ff8fb0', COLOR.hpTrack, '#ffb3c7');
+    ctx.textAlign = 'center';
+    const humor = chefe.aiState === 4 ? 'CHORANDO: ATAQUE!' : chefe.aiState === 1 ? 'EM BIRRA' : animado ? 'ANIMADO' : chefe.aiW < 25 ? 'ENTEDIADO' : 'ATENÇÃO';
+    textoContornado(ctx, humor, LOGICAL_WIDTH / 2, 59, chefe.aiState === 4 ? '#9be7a8' : '#ffc2d4');
+    if (chefe.aiDir !== 0) {
+      const ativa = chefe.aiY <= duracaoDaRegra(chefe.aiDir);
+      const resta = Math.ceil(ativa ? chefe.aiY : chefe.aiY - duracaoDaRegra(chefe.aiDir));
+      textoContornado(ctx, `${NOME_REGRA[chefe.aiDir]} ${ativa ? resta + 's' : '(' + resta + ')'}`, LOGICAL_WIDTH / 2, 71, ativa ? '#ffe36b' : '#ffffff');
+    }
+    ctx.textAlign = 'left';
+  }
+  // Escudo da Melina: barra fina azul embaixo da vida do Juninho.
+  if (chefe.def.id === 'juninho' && chefe.aiY > 0) {
+    medidor(ctx, x, 45, w, 3, Math.min(1, chefe.aiY / (chefe.aiDir || 1)), '#9fd0ff', COLOR.hpTrack, '#9fd0ff');
+  }
   ctx.textAlign = 'left';
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BESTIARY } from '../data/bestiary';
-import { BOSSES, COMUNS, SALSICHAS_CORPOS } from '../data/enemies';
+import { BOSSES, COMUNS, AZULETES, SALSICHAS_CORPOS } from '../data/enemies';
 import { BOSS_STATE } from '../combat/bosses';
 import { spawnEnemy } from '../combat/spawner';
 import { createWorld, type World } from '../engine/world';
@@ -39,9 +39,9 @@ describe('Folhas animadas: formato', () => {
 
   it('todo inimigo comum, chefe e corpo das Salsichas tem folha esperada', () => {
     for (const d of COMUNS) expect(INIMIGOS_EXTERNOS[d.id]?.tipo, d.id).toBe('direcional');
-    for (const d of [...BOSSES, ...SALSICHAS_CORPOS]) expect(INIMIGOS_EXTERNOS[d.id]?.tipo, d.id).toBe('chefe');
+    for (const d of [...BOSSES, ...SALSICHAS_CORPOS, ...AZULETES]) expect(INIMIGOS_EXTERNOS[d.id]?.tipo, d.id).toBe('chefe');
     expect(INIMIGOS_EXTERNOS.salsichao?.tipo).toBe('chefe'); // a fusão dos quatro (fase 3 da luta das Salsichas)
-    expect(Object.keys(INIMIGOS_EXTERNOS)).toHaveLength(BESTIARY.length + BOSSES.length + SALSICHAS_CORPOS.length + 1);
+    expect(Object.keys(INIMIGOS_EXTERNOS)).toHaveLength(BESTIARY.length + BOSSES.length + SALSICHAS_CORPOS.length + AZULETES.length + 1);
   });
 
   it('há retrato para os cinco do Comitê, o Lucas, os aprendizes, os 10 jovens e todos os chefes', () => {
@@ -128,8 +128,10 @@ describe('Escolha do quadro', () => {
     w.trance = null;
 
     const chris = inimigo(w, chefe('christopher'));
-    chris.aiT2 = 4.5;
+    chris.aiState = BOSS_STATE.AQUECENDO; // em birra
     expect(quadroDoInimigo(w, chris, 'chefe')).toBe('special');
+    chris.aiState = BOSS_STATE.EXAUSTO; // chorando
+    expect(quadroDoInimigo(w, chris, 'chefe')).toBe('stun');
 
     const ale = inimigo(w, chefe('ale'));
     ale.aiState = BOSS_STATE.PREPARANDO; // janela do "parar"

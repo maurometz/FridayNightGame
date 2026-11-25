@@ -155,6 +155,7 @@ export function updateThaisa(world: World, p: Player): void {
       darPico(s, 1);
       for (const a of roda) addBuff(a, { id: `roda${p.slot}`, left: RODA_S, attack: RODA_ATTACK });
       spawnEffect(world, { kind: 'text', x: p.x, y: p.y - 30, life: 1, color: '#9be08a', text: 'Roda de Mate!' });
+      spawnEffect(world, { kind: 'ring', x: p.x, y: p.y - 8, radius: RODA_RADIUS, life: 0.8, color: '#9be08a', sprite: 'roda_mate' });
     }
   }
 
@@ -164,7 +165,7 @@ export function updateThaisa(world: World, p: Player): void {
     if (s.pulseCd <= 0) {
       s.pulseCd = RODIZIO_PULSE_EVERY_S;
       damageArea(world, p.x, p.y - 8, RODIZIO_PULSE_RADIUS, RODIZIO_PULSE_DAMAGE * p.damageMul, p);
-      spawnEffect(world, { kind: 'ring', x: p.x, y: p.y - 8, radius: RODIZIO_PULSE_RADIUS, life: 0.3, color: '#ffe08a' });
+      spawnEffect(world, { kind: 'ring', x: p.x, y: p.y - 8, radius: RODIZIO_PULSE_RADIUS, life: 0.35, color: '#ffe08a', sprite: 'rodizio_pulso' });
     }
   }
 

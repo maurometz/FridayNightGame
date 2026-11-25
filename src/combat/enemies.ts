@@ -28,6 +28,8 @@ import { registrarDano } from '../data/stats';
 import { moverInimigo, onEnemyDeathEffect, resolverParedes } from './enemyAI';
 import { updateBoss } from './bosses';
 import { danoNoCachorro, estaExausto } from './salsichas';
+import { absorverNoEscudo, danoNaAzulete, estaExaustaAzulete } from './azuletes';
+import { copiaAtingida, danoNoChristopher, estaEscondido, estaExaustoChris } from './christopher';
 import { onBossKilled } from './run';
 
 /** Força da separação entre inimigos sobrepostos (fração da sobreposição por passo). */
@@ -154,7 +156,7 @@ export function updateEnemies(world: World): void {
     }
 
     // Dano de contato. Não vale para o coelho sumido.
-    const inofensivo = e.untargetable || estaExausto(e);
+    const inofensivo = e.untargetable || estaExausto(e) || estaExaustaAzulete(e) || estaExaustoChris(e) || estaEscondido(e);
     if (world.stress === 0 && !blind && !thrown && !inofensivo && target.invuln <= 0) {
       const tdx = target.x - e.x;
       const tdy = target.y - e.y;
@@ -265,15 +267,27 @@ export function fonteDoPersonagem(p: Player): string {
 /** Aplica dano a um inimigo e o mata se a vida acabar. */
 export function damageEnemy(world: World, e: Enemy, amount: number, killer: Player | undefined): void {
   if (!e.alive || e.untargetable) return;
+  // Cópia do Christopher (esconde-esconde): não leva dano de verdade, só dá um susto.
+  if (e.def.id === 'christopherCopia') {
+    copiaAtingida(world, e);
+    return;
+  }
   // Corpos da matilha (Salsichas): o dano vai para a vida do líder, que é uma só.
   if (e.leader !== 0) {
     const lider = world.enemies.active.find((x) => x.uid === e.leader && x.alive);
     e.hitFlash = 0.08;
     danoNoCachorro(world, e, amount);
-    if (lider) damageEnemy(world, lider, amount, killer);
+    if (lider) damageEnemy(world, lider, amount * danoNaAzulete(world, e, lider, amount), killer);
     return;
   }
   if (e.def.id === 'salsichas') danoNoCachorro(world, e, amount);
+  // Escudo da Melina: absorve o dano que iria para o Juninho.
+  if (e.def.id === 'juninho') {
+    amount = absorverNoEscudo(world, e, amount);
+    if (amount <= 0) return;
+  }
+  // Christopher: exausto leva mais; achado no esconde-esconde se revela.
+  if (e.def.id === 'christopher') amount = danoNoChristopher(world, e, amount);
   // Modo dev: multiplicador de dano.
   if (world.dev && world.dev.danoMul !== 1) amount *= world.dev.danoMul;
   // Resistência (o Tiago W aprende padrões repetidos).
@@ -342,6 +356,10 @@ export function damageArea(
 /** Mata um inimigo: solta gema e conta o abate. Só marca como morto; a liberação é feita no fim do passo. */
 export function killEnemy(world: World, e: Enemy, killer: Player | undefined): void {
   if (!e.alive) return;
+  if (e.def.id === 'christopherCopia') {
+    e.alive = false; // cópia: some sem drops nem abate
+    return;
+  }
   if (e.leader !== 0) {
     // Um corpo da matilha só cai com o líder.
     const lider = world.enemies.active.find((x) => x.uid === e.leader && x.alive);
@@ -349,7 +367,7 @@ export function killEnemy(world: World, e: Enemy, killer: Player | undefined): v
     return;
   }
   // O líder cai e leva os corpos junto (sem drops nem abates extras).
-  if (e.def.id === 'salsichas') for (const f of world.enemies.active) if (f.leader === e.uid) f.alive = false;
+  if (e.def.boss) for (const f of world.enemies.active) if (f.leader === e.uid) f.alive = false;
   e.alive = false;
   if (killer) {
     killer.kills++;

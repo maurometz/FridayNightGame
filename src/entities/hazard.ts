@@ -25,6 +25,9 @@ export interface Hazard extends Poolable {
   slowFor: number;
   /** Anel: velocidade de expansão (px/s), raio máximo e espessura. */
   expand: number;
+  /** Anel com vão: direção (rad) e meia-abertura (rad) por onde dá para passar sem levar dano. 0 = sem vão. */
+  gapAngle: number;
+  gapHalf: number;
   maxRadius: number;
   thickness: number;
   /** Empurrão no impacto (circle): velocidade (px/s) para longe do centro, aplicada por `pushS` segundos a quem estava dentro. */
@@ -55,6 +58,8 @@ export function createHazard(): Hazard {
     dps: 0,
     slowFor: 0,
     expand: 0,
+    gapAngle: 0,
+    gapHalf: 0,
     maxRadius: 0,
     thickness: 0,
     push: 0,

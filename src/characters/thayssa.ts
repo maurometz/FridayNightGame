@@ -73,17 +73,17 @@ function trocarDeModo(world: World, p: Player, s: ThayssaState): void {
   // Drop na Troca: alternar de modo libera uma explosão em área.
   if (s.mods.drop) {
     damageArea(world, p.x, oy, DROP_RADIUS, DROP_DAMAGE * p.damageMul, p);
-    spawnEffect(world, { kind: 'ring', x: p.x, y: oy, radius: DROP_RADIUS, life: 0.35, color: cor });
+    spawnEffect(world, { kind: 'ring', x: p.x, y: oy, radius: DROP_RADIUS, life: 0.4, color: cor, sprite: 'drop_troca' });
   }
   // Sincronia Oceânica: pulso que cura aliados a 5 tiles.
   if (s.mods.sincronia) {
     for (const a of jogadoresNoRaio(world, p.x, p.y, SINCRONIA_RADIUS)) healPlayer(a, SINCRONIA_HEAL);
-    spawnEffect(world, { kind: 'ring', x: p.x, y: oy, radius: SINCRONIA_RADIUS, life: 0.5, color: '#7ad7ff' });
+    spawnEffect(world, { kind: 'ring', x: p.x, y: oy, radius: SINCRONIA_RADIUS, life: 0.6, color: '#7ad7ff', sprite: 'sincronia_oceanica' });
   }
   if (s.mods.danca && s.switchCount >= DANCA_SWITCHES) {
     s.switchCount = 0;
     damageArea(world, p.x, oy, DANCA_RADIUS, DANCA_DAMAGE * p.damageMul, p);
-    spawnEffect(world, { kind: 'ring', x: p.x, y: oy, radius: DANCA_RADIUS, life: 0.5, color: '#ffffff' });
+    spawnEffect(world, { kind: 'ring', x: p.x, y: oy, radius: DANCA_RADIUS, life: 0.6, color: '#ffffff', sprite: 'danca_dois_modos' });
     spawnEffect(world, { kind: 'text', x: p.x, y: p.y - 30, life: 1, color: '#ffffff', text: 'Dança dos Dois Modos!' });
   }
 }
@@ -178,7 +178,7 @@ function megafone(world: World, p: Player, s: ThayssaState): void {
     }
   }
   const cor = sobrecarga && !euforia ? COR_SOBRECARGA : COR_EUFORIA;
-  spawnEffect(world, { kind: 'arc', x: p.x, y: oy, radius: MEGAFONE_REACH, angle, halfArc: MEGAFONE_HALF_ARC, life: 0.22, color: cor });
+  spawnEffect(world, { kind: 'arc', x: p.x, y: oy, radius: MEGAFONE_REACH, angle, halfArc: MEGAFONE_HALF_ARC, life: 0.22, color: cor, sprite: 'megafone_arco' });
   s.megaCd = MEGAFONE_COOLDOWN_S / attackSpeed(p);
 }
 
@@ -236,7 +236,7 @@ export function updateThayssa(world: World, p: Player, input: PlayerInput): void
     s.palmasCd = PALMAS_EVERY_S;
     const r = raioDaAura(s) * PALMAS_RADIUS_MUL;
     repulsao(world, p, r, PALMAS_KNOCK, 0);
-    spawnEffect(world, { kind: 'ring', x: p.x, y: p.y - 8, radius: r, life: 0.45, color: '#ffffff' });
+    spawnEffect(world, { kind: 'ring', x: p.x, y: p.y - 8, radius: r, life: 0.5, color: '#ffffff', sprite: 'pulso_palmas' });
   }
 
   // Último Abraço: com a Thayssa abaixo de 10% de HP, aliados na aura ficam invulneráveis por 2 s.
@@ -244,5 +244,6 @@ export function updateThayssa(world: World, p: Player, input: PlayerInput): void
     s.ultimoCd = ULTIMO_COOLDOWN_S;
     for (const a of jogadoresNoRaio(world, p.x, p.y, raioDaAura(s))) a.invuln = Math.max(a.invuln, ULTIMO_INVULN_S);
     spawnEffect(world, { kind: 'text', x: p.x, y: p.y - 30, life: 1.2, color: '#ffd1ec', text: 'Último Abraço!' });
+    spawnEffect(world, { kind: 'ring', x: p.x, y: p.y - 8, radius: raioDaAura(s), life: 0.9, color: '#ffd1ec', sprite: 'ultimo_abraco' });
   }
 }

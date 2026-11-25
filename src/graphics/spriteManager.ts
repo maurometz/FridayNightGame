@@ -107,7 +107,7 @@ export interface Faixa {
 }
 
 /** Armas na mão (public/assets/sprites/armas/<id>.png) e quantos quadros cada uma tem. */
-export const ARMAS_EXTERNAS: Readonly<Record<string, number>> = { violao: 1, bateria: 1, flauta: 1, kazoo: 1, tomo: 1, florete: 1, cello: 1, microfone: 1, megafone: 1 };
+export const ARMAS_EXTERNAS: Readonly<Record<string, number>> = { violao: 1, bateria: 1, flauta: 1, viola: 1, kazoo: 1, tomo: 1, florete: 1, cello: 1, microfone: 1, megafone: 1 };
 /** Veículos (public/assets/sprites/veiculos/<id>.png): uma imagem, olhando para a direita, com os pés/rodas na base. */
 export const VEICULOS_EXTERNOS: Readonly<Record<string, number>> = { cavalo: 1, carroca: 1, c3: 1, skate: 1, armadura: 1 };
 /** Projéteis e efeitos (public/assets/sprites/projeteis/<nome>.png): o nome é o ProjectileKind ou o Effect.sprite. */
@@ -115,6 +115,34 @@ export const PROJETEIS_EXTERNOS: Readonly<Record<string, number>> = {
   note: 4,
   kazoo: 4,
   runa: 4,
+  // Kit do Felipe: Viola, anomalias (pato, confete, supervelocidade, chuva), Espiral, Réquiem, cura da Flauta e feedback.
+  duck: 4,
+  viola: 4,
+  confete: 4,
+  supervelocidade: 4,
+  chuva_kazoos: 4,
+  espiral: 4,
+  requiem: 4,
+  flauta_cura: 4,
+  feedback: 4,
+  // Kits do Mauro, da Melissa, da Thaisa e da Thayssa.
+  livro_orbita: 4,
+  mestre_explosao: 4,
+  reacao_exagerada: 4,
+  show_inesperado: 4,
+  entrada_dupla: 4,
+  fancam: 4,
+  onda: 4,
+  rodizio_pulso: 4,
+  roda_mate: 4,
+  thayssaAuraEuforia: 4,
+  thayssaAuraSobrecarga: 4,
+  megafone_arco: 4,
+  drop_troca: 4,
+  sincronia_oceanica: 4,
+  danca_dois_modos: 4,
+  pulso_palmas: 4,
+  ultimo_abraco: 4,
   // Efeitos de ataque (Effect.sprite) e o marcador do Holofote.
   bateria: 4,
   melissaArco: 4,
@@ -137,6 +165,21 @@ export const PROJETEIS_EXTERNOS: Readonly<Record<string, number>> = {
   // Luta das Salsichas: poça de tinta da Monet, trilha do Toddy e a mordida do Bucky (perigos no chão).
   poca_tinta: 4,
   toddy_rastro: 4,
+  // Luta do Christopher.
+  brinquedo: 4,
+  marca_pique: 4,
+  explosao_pique: 4,
+  tapete_seguro: 4,
+  susto_copia: 4,
+  // Luta do Juninho e das Azuletes.
+  drone: 4,
+  laser_drone: 4,
+  cronograma: 4,
+  prazo_explosao: 4,
+  reuniao: 4,
+  escudo_juninho: 4,
+  ironia: 4,
+  email: 4,
   mordida: 4,
 };
 /** Props de cenário (public/assets/sprites/props/<id>.png): uma imagem do objeto, vista 3/4 de cima. */
